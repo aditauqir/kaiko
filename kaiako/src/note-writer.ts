@@ -36,6 +36,36 @@ export function splitSessionTurns(body: string): SessionTurn[] {
 	return turns;
 }
 
+export function stripYouPrefix(markdown: string): string {
+	return markdown.replace(/^\*\*You:\*\*\s*/i, "").trim();
+}
+
+export function serializeSessionTurns(turns: SessionTurn[]): string {
+	return turns.map((turn) => turn.markdown.trim()).filter(Boolean).join("\n\n");
+}
+
+export async function replaceSessionTurns(
+	app: App,
+	session: SessionMeta,
+	turns: SessionTurn[],
+): Promise<void> {
+	const file = app.vault.getAbstractFileByPath(session.filePath);
+	if (!(file instanceof TFile)) {
+		new Notice("Session note is missing from the vault.");
+		return;
+	}
+	const nextBody = serializeSessionTurns(turns);
+	await app.vault.process(file, (data) => {
+		const fmMatch = data.match(/^---\n[\s\S]*?\n---\n/);
+		const front = fmMatch ? fmMatch[0] : "";
+		const afterFm = fmMatch ? data.slice(fmMatch[0].length) : data;
+		const headerMatch = afterFm.match(/^(# [^\n]+\n\n_Kaiako session `[^`]+` · [^\n]+_\n*)/);
+		const header = (headerMatch?.[1] ?? "").replace(/\n+$/, "\n\n");
+		const body = nextBody ? `${nextBody}\n` : "";
+		return `${front}${header}${body}`;
+	});
+}
+
 export async function appendToSession(
 	app: App,
 	session: SessionMeta | null,
@@ -169,6 +199,16 @@ export function harnessFromFrontmatter(fields: Record<string, string>): Partial<
 		try {
 			const parsed = JSON.parse(unquote(fields.kaiako_diagnostic)) as DiagnosticItemRecord[];
 			if (Array.isArray(parsed)) out.diagnosticItems = parsed;
+		} catch {
+			/* ignore */
+		}
+	}
+	if (fields.kaiako_liked) {
+		try {
+			const parsed = JSON.parse(unquote(fields.kaiako_liked)) as number[];
+			if (Array.isArray(parsed)) {
+				out.likedTurns = parsed.filter((item) => Number.isInteger(item) && item >= 0);
+			}
 		} catch {
 			/* ignore */
 		}

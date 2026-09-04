@@ -1,19 +1,28 @@
-import { type Component } from "obsidian";
-import { mountThinkingOrb, type OrbState, type ThinkingOrbHandle } from "./thinking-orb";
+import { Platform, type Component } from "obsidian";
+import type { SessionPhase } from "./config";
+import { mountThinkingOrb, orbForPhase, type OrbState, type ThinkingOrbHandle } from "./thinking-orb";
 
 export interface PromptBarHandlers {
 	onSend: (text: string) => void;
 }
 
+export interface PromptBarOptions {
+	netSearch?: boolean;
+}
+
 export interface PromptBarHandle {
 	setInternetActive: (on: boolean) => void;
-	setOrb: (state: OrbState | null) => void;
+	setOrb: (state: OrbState | null, labelOverride?: string) => void;
+	setPhase: (phase: SessionPhase) => void;
 }
+
+const SEND_SHORTCUT = Platform.isMacOS ? "⌘ + ⏎" : "Ctrl + ⏎";
 
 export function mountPromptBar(
 	host: Component,
 	parent: HTMLElement,
 	handlers: PromptBarHandlers,
+	opts?: PromptBarOptions,
 ): PromptBarHandle {
 	parent.empty();
 	parent.addClass("kaiako-promptbar");
@@ -23,7 +32,12 @@ export function mountPromptBar(
 
 	const composer = parent.createDiv({ cls: "kaiako-prompt-composer" });
 	const controls = composer.createDiv({ cls: "kaiako-prompt-controls" });
-	const internetBtn = svgIconButton(controls, "Internet in use", globePath, "kaiako-internet-btn");
+
+	const netSearch = Boolean(opts?.netSearch);
+	let internetActive = false;
+
+	const internetWrap = controls.createDiv({ cls: "kaiako-tip kaiako-internet-wrap" });
+	const internetBtn = svgIconButton(internetWrap, "Web search", globePath, "kaiako-internet-btn");
 	internetBtn.addClass("kaiako-status-btn");
 	internetBtn.disabled = true;
 
@@ -34,13 +48,25 @@ export function mountPromptBar(
 
 	const sendBtn = svgIconButton(controls, "Send", uploadPath, "kaiako-prompt-send");
 	sendBtn.addClass("kaiako-prompt-send");
+	sendBtn.addClass("kaiako-tip");
+	sendBtn.setAttr("data-tooltip", SEND_SHORTCUT);
 
 	let draft = "";
+
+	const syncGlobeTip = () => {
+		const status = internetActive
+			? "Using tools"
+			: netSearch
+				? "Web search idle"
+				: "Web search off";
+		internetWrap.setAttr("data-tooltip", status);
+		internetBtn.setAttr("aria-label", status);
+	};
 
 	const syncSend = () => {
 		const canSend = draft.trim().length > 0;
 		sendBtn.toggleClass("is-ready", canSend);
-		sendBtn.disabled = !canSend;
+		sendBtn.setAttr("aria-disabled", canSend ? "false" : "true");
 	};
 
 	const resize = () => {
@@ -70,19 +96,28 @@ export function mountPromptBar(
 		resize();
 	});
 	host.registerDomEvent(input, "keydown", (event) => {
-		if (event.key === "Enter" && !event.shiftKey) {
-			event.preventDefault();
-			send();
-		}
+		if (event.key !== "Enter" || event.shiftKey) return;
+		event.preventDefault();
+		send();
 	});
 	host.registerDomEvent(sendBtn, "click", () => send());
 
+	syncGlobeTip();
 	syncSend();
 	resize();
 
 	return {
-		setInternetActive: (on) => internetBtn.toggleClass("is-live", on),
-		setOrb: (state) => orb.setState(state),
+		setInternetActive: (on) => {
+			internetActive = on;
+			internetBtn.toggleClass("is-live", on);
+			internetBtn.toggleClass("is-searching", on);
+			syncGlobeTip();
+		},
+		setOrb: (state, labelOverride) => orb.setState(state, labelOverride),
+		setPhase: (phase) => {
+			const presentation = orbForPhase(phase);
+			orb.setState(presentation.state, presentation.label);
+		},
 	};
 }
 

@@ -55,7 +55,7 @@ export const PROVIDERS: ProviderDef[] = [
 	{
 		id: "deepseek",
 		label: "DeepSeek",
-		model: "deepseek-chat",
+		model: "deepseek-v4-flash",
 		hint: "DeepSeek API key",
 	},
 	{

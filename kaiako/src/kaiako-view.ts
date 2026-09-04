@@ -17,10 +17,15 @@ import {
 	persistHarnessState,
 	readSessionBody,
 	readSessionHarness,
+	replaceSessionTurns,
 	splitSessionTurns,
+	stripYouPrefix,
+	patchSessionFrontmatter,
+	type SessionTurn,
 } from "./note-writer";
 import { KaiakoSettingsModal } from "./settings-modal";
 import { mountPromptBar, type PromptBarHandle } from "./prompt-bar";
+import { mountApprovalCard } from "./approval-card";
 import { extractGoal, hasStoredGoal } from "./goal";
 import { buildHarnessPrompt, resolvePhase } from "./harness-prompt";
 import { estimateAbility, type ScoredItem } from "./knowledge";
@@ -42,6 +47,7 @@ export class KaiakoView extends ItemView {
 	private piVersion: string | null = null;
 	private piBusy = false;
 	private archiveOpen = false;
+	private archiveEl: HTMLElement | null = null;
 	private promptBar: PromptBarHandle | null = null;
 	private skippedProviders = false;
 	private stream: StreamRevealHandle | null = null;
@@ -76,6 +82,7 @@ export class KaiakoView extends ItemView {
 
 	async onClose(): Promise<void> {
 		this.contentEl.empty();
+		this.archiveEl = null;
 	}
 
 	reopenOnboarding(): void {
@@ -107,6 +114,7 @@ export class KaiakoView extends ItemView {
 	}
 
 	private render(): void {
+		this.archiveEl = null;
 		this.rootEl.empty();
 		const shell = this.rootEl.createDiv({
 			cls: [
@@ -415,8 +423,7 @@ export class KaiakoView extends ItemView {
 		});
 		setIcon(archiveBtn, "archive");
 		this.registerDomEvent(archiveBtn, "click", () => {
-			this.archiveOpen = !this.archiveOpen;
-			this.render();
+			this.toggleArchive(chat);
 		});
 
 		const newChatBtn = top.createEl("button", {
@@ -437,7 +444,7 @@ export class KaiakoView extends ItemView {
 			void this.plugin.saveConfig({ lockedIn: !this.cfg().lockedIn }).then(() => this.render());
 		});
 
-		if (this.archiveOpen) this.renderArchive(chat);
+		if (this.archiveOpen) this.archiveEl = this.renderArchive(chat);
 
 		const currentSession = this.cfg().sessions.find((item) => item.id === this.cfg().currentSessionId) ?? null;
 		const greet = currentSession?.title ?? (this.cfg().name ? `Hello ${this.cfg().name}` : "Kaiako");
@@ -447,11 +454,17 @@ export class KaiakoView extends ItemView {
 		void this.fillMessages(messages, greetEl);
 
 		const composer = chat.createDiv({ cls: "kaiako-composer" });
-		this.promptBar = mountPromptBar(this, composer, {
-			onSend: (text) => {
-				void this.handleSend(messages, text, greetEl);
+		this.promptBar = mountPromptBar(
+			this,
+			composer,
+			{
+				onSend: (text) => {
+					void this.handleSend(messages, text, greetEl);
+				},
 			},
-		});
+			{ netSearch: this.cfg().netSearch },
+		);
+		this.promptBar.setPhase(resolvePhase(currentSession));
 
 		const meta = chat.createDiv({ cls: "kaiako-meta" });
 		const entry = this.cfg().apiKeys.find((item) => item.id === this.cfg().activeModelId);
@@ -465,14 +478,24 @@ export class KaiakoView extends ItemView {
 		});
 	}
 
-	private renderArchive(chat: HTMLElement): void {
+	private toggleArchive(chat: HTMLElement): void {
+		this.archiveOpen = !this.archiveOpen;
+		if (this.archiveOpen) {
+			this.archiveEl = this.renderArchive(chat);
+			return;
+		}
+		this.archiveEl?.remove();
+		this.archiveEl = null;
+	}
+
+	private renderArchive(chat: HTMLElement): HTMLElement {
 		const pop = chat.createDiv({ cls: "kaiako-archive-pop" });
 		pop.createEl("h3", { text: "Sessions" });
 		const scroller = pop.createDiv({ cls: "kaiako-archive-scroll" });
 		const sessions = this.cfg().sessions;
 		if (sessions.length === 0) {
 			scroller.createEl("p", { cls: "kaiako-hint", text: "No sessions yet." });
-			return;
+			return pop;
 		}
 		for (const session of sessions) {
 			const row = scroller.createEl("button", { cls: "kaiako-archive-session" });
@@ -484,6 +507,7 @@ export class KaiakoView extends ItemView {
 				void this.openSession(session);
 			});
 		}
+		return pop;
 	}
 
 	private openSettings(): void {
@@ -494,7 +518,7 @@ export class KaiakoView extends ItemView {
 	}
 
 	private async fillMessages(messages: HTMLElement, greet?: HTMLElement): Promise<void> {
-		const session = this.cfg().sessions.find((item) => item.id === this.cfg().currentSessionId) ?? null;
+		let session = this.cfg().sessions.find((item) => item.id === this.cfg().currentSessionId) ?? null;
 		const body = await readSessionBody(this.app, session);
 		messages.empty();
 		if (!body) {
@@ -508,8 +532,13 @@ export class KaiakoView extends ItemView {
 			return;
 		}
 		greet?.removeClass("kaiako-chat-greet--hidden");
+		if (session) session = await this.hydrateSession(session);
+		this.promptBar?.setPhase(resolvePhase(session));
 		const turns = splitSessionTurns(body);
-		for (const turn of turns) {
+		const liked = new Set(session?.likedTurns ?? []);
+		for (let index = 0; index < turns.length; index += 1) {
+			const turn = turns[index];
+			if (!turn) continue;
 			this.separateMessage(messages);
 			const wrap = messages.createDiv({ cls: `kaiako-turn kaiako-turn--${turn.role}` });
 			const article = wrap.createDiv({ cls: "kaiako-md" });
@@ -520,8 +549,117 @@ export class KaiakoView extends ItemView {
 				session?.filePath ?? "",
 				this,
 			);
+			this.mountTurnActions(wrap, messages, session, turns, index, liked.has(index), greet);
 		}
 		this.mountScoreChip(messages, session);
+	}
+
+	private mountTurnActions(
+		wrap: HTMLElement,
+		messages: HTMLElement,
+		session: SessionMeta | null,
+		turns: SessionTurn[],
+		index: number,
+		liked: boolean,
+		greet?: HTMLElement,
+	): void {
+		const bar = wrap.createDiv({ cls: "kaiako-turn-actions" });
+		const turn = turns[index];
+		if (!turn) return;
+
+		const likeBtn = heroIconButton(bar, "Like", HEART_PATH, "kaiako-turn-like");
+		likeBtn.setAttr("aria-pressed", liked ? "true" : "false");
+		if (liked) likeBtn.addClass("is-liked");
+		this.registerDomEvent(likeBtn, "click", () => {
+			void this.toggleTurnLike(likeBtn, session, index, greet);
+		});
+
+		const copyBtn = heroIconButton(bar, "Copy", CLIPBOARD_PATH, "kaiako-turn-copy");
+		this.registerDomEvent(copyBtn, "click", () => {
+			void this.copyTurn(turn);
+		});
+
+		const restartBtn = heroIconButton(bar, "Restart from here", RESTART_PATH, "kaiako-turn-restart");
+		this.registerDomEvent(restartBtn, "click", () => {
+			void this.restartFromTurn(messages, session, turns, index, greet);
+		});
+	}
+
+	private async copyTurn(turn: SessionTurn): Promise<void> {
+		const text = stripYouPrefix(stripMcqFences(turn.markdown));
+		try {
+			await navigator.clipboard.writeText(text);
+			new Notice("Copied");
+		} catch {
+			new Notice("Could not copy");
+		}
+	}
+
+	private async toggleTurnLike(
+		btn: HTMLButtonElement,
+		session: SessionMeta | null,
+		index: number,
+		_greet?: HTMLElement,
+	): Promise<void> {
+		if (!session) return;
+		session = await this.hydrateSession(session);
+		const liked = new Set(session.likedTurns ?? []);
+		if (liked.has(index)) liked.delete(index);
+		else liked.add(index);
+		const likedTurns = [...liked].sort((a, b) => a - b);
+		session = { ...session, likedTurns };
+		await patchSessionFrontmatter(this.app, session, {
+			kaiako_liked: JSON.stringify(likedTurns),
+		});
+		await this.saveSession(session);
+		btn.toggleClass("is-liked", liked.has(index));
+		btn.setAttr("aria-pressed", liked.has(index) ? "true" : "false");
+	}
+
+	private async restartFromTurn(
+		messages: HTMLElement,
+		session: SessionMeta | null,
+		turns: SessionTurn[],
+		index: number,
+		greet?: HTMLElement,
+	): Promise<void> {
+		if (!session) {
+			new Notice("Start a chat first.");
+			return;
+		}
+		const target = turns[index];
+		if (!target) return;
+
+		this.stream?.cancel();
+		this.stream = null;
+
+		const kept = target.role === "user" ? turns.slice(0, index + 1) : turns.slice(0, index);
+		const promptSource =
+			target.role === "user"
+				? target
+				: [...kept].reverse().find((item) => item.role === "user");
+		const promptText = promptSource ? stripYouPrefix(promptSource.markdown) : "";
+		if (!promptText) {
+			new Notice("Nothing to restart from.");
+			return;
+		}
+
+		const likedTurns = (session.likedTurns ?? []).filter((item) => item < kept.length);
+		await replaceSessionTurns(this.app, session, kept);
+		session = { ...session, likedTurns };
+		await patchSessionFrontmatter(this.app, session, {
+			kaiako_liked: JSON.stringify(likedTurns),
+		});
+		await this.saveSession(session);
+		await this.fillMessages(messages, greet);
+
+		const started = await this.plugin.pi.ensure(this.app, this.cfg());
+		if (!started.ok) {
+			new Notice(started.detail);
+			return;
+		}
+		this.promptBar?.setOrb("working");
+		await this.runPiTurn(messages, session, promptText, greet);
 	}
 
 	private separateMessage(messages: HTMLElement): void {
@@ -586,7 +724,8 @@ export class KaiakoView extends ItemView {
 	): Promise<void> {
 		this.separateMessage(messages);
 		const live = messages.createDiv({ cls: "kaiako-bubble kaiako-bubble--ai kaiako-stream" });
-		this.stream = mountStreamReveal(live, { transform: stripMcqFences });
+		const stream = mountStreamReveal(live, { transform: stripMcqFences });
+		this.stream = stream;
 		this.toolsLive = false;
 		this.promptBar?.setOrb("breathing");
 
@@ -602,13 +741,20 @@ export class KaiakoView extends ItemView {
 			},
 			onText: (chunk) => {
 				if (!this.toolsLive) this.promptBar?.setOrb("composing");
-				this.stream?.push(chunk);
+				// Bind every Pi delta to this turn's reveal instance. This keeps the
+				// typewriter animation alive if a later render starts another turn.
+				if (this.stream === stream) stream.push(chunk);
 			},
 			onDone: (full, usage) => {
-				void this.finishAssistantTurn(messages, session, full, greet, usage);
+				void this.finishAssistantTurn(messages, session, stream, full, greet, usage);
 			},
 			onError: (message) => {
-				this.promptBar?.setOrb(null);
+				if (this.stream === stream) {
+					stream.cancel();
+					this.stream = null;
+					live.remove();
+				}
+				this.promptBar?.setPhase(resolvePhase(session));
 				this.promptBar?.setInternetActive(false);
 				new Notice(message);
 			},
@@ -622,13 +768,16 @@ export class KaiakoView extends ItemView {
 	private async finishAssistantTurn(
 		messages: HTMLElement,
 		session: SessionMeta,
+		stream: StreamRevealHandle,
 		full: string,
 		greet?: HTMLElement,
 		usage?: { cost?: number },
 	): Promise<void> {
-		await this.stream?.seedIfEmpty(stripMcqFences(full));
-		await this.stream?.finish();
-		this.stream = null;
+		// Pi providers can emit deltas or only the completed response. Sync the
+		// final text into the same reveal instance so both paths animate identically.
+		stream.setText(stripMcqFences(full));
+		await stream.finish();
+		if (this.stream === stream) this.stream = null;
 		if (usage?.cost != null && this.costEl) {
 			this.costEl.setText(`Inference · $${usage.cost.toFixed(4)}`);
 		}
@@ -641,7 +790,7 @@ export class KaiakoView extends ItemView {
 		if (mcq && phase === "need_goal") {
 			if (toWrite) await appendToSession(this.app, session, toWrite);
 			await this.fillMessages(messages, greet);
-			this.promptBar?.setOrb(null);
+			this.promptBar?.setPhase(phase);
 			this.promptBar?.setInternetActive(false);
 			await this.runPiTurn(
 				messages,
@@ -656,13 +805,13 @@ export class KaiakoView extends ItemView {
 			await this.fillMessages(messages, greet);
 			this.mountMcq(messages, session, mcq, greet, phase === "diagnostic");
 			this.promptBar?.setInternetActive(false);
-			this.promptBar?.setOrb("listening");
+			this.promptBar?.setPhase(phase);
 			return;
 		}
 
 		if (toWrite) await appendToSession(this.app, session, toWrite);
 		await this.fillMessages(messages, greet);
-		this.promptBar?.setOrb(null);
+		this.promptBar?.setPhase(phase);
 		this.promptBar?.setInternetActive(false);
 	}
 
@@ -674,48 +823,18 @@ export class KaiakoView extends ItemView {
 		scoreIt = true,
 	): void {
 		this.separateMessage(messages);
-		const box = messages.createDiv({ cls: "kaiako-mcq" });
-		const stem = box.createDiv({ cls: "kaiako-mcq-stem" });
-		void MarkdownRenderer.render(
-			this.app,
-			sanitizeMathForRender(item.stem),
-			stem,
-			session.filePath,
-			this,
-		);
-		const list = box.createDiv({ cls: "kaiako-mcq-options" });
 		let locked = false;
-
 		const pick = (chosen: string, dontKnow: boolean) => {
 			if (locked) return;
 			locked = true;
 			void this.answerMcq(messages, session, item, chosen, dontKnow, box, greet, scoreIt);
 		};
-
-		for (const option of item.options) {
-			const btn = list.createEl("button", {
-				cls: "kaiako-mcq-option",
-				attr: { type: "button" },
-			});
-			const label = btn.createSpan({ cls: "kaiako-mcq-key", text: option.id.toUpperCase() });
-			void label;
-			const body = btn.createSpan({ cls: "kaiako-mcq-text" });
-			void MarkdownRenderer.render(
-				this.app,
-				sanitizeMathForRender(option.text),
-				body,
-				session.filePath,
-				this,
-			);
-			this.registerDomEvent(btn, "click", () => pick(option.id, false));
-		}
-
-		const skip = box.createEl("button", {
-			cls: "kaiako-mcq-skip",
-			text: "I don't know",
-			attr: { type: "button" },
+		const box = mountApprovalCard(messages, item, {
+			app: this.app,
+			sourcePath: session.filePath,
+			component: this,
+			onSubmit: pick,
 		});
-		this.registerDomEvent(skip, "click", () => pick("", true));
 		messages.scrollTop = messages.scrollHeight;
 	}
 
@@ -839,6 +958,40 @@ function promptWithUserContext(config: KaiakoConfig, text: string): string {
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
+
+function heroIconButton(parent: HTMLElement, label: string, pathD: string, className: string): HTMLButtonElement {
+	const btn = parent.createEl("button", {
+		cls: `kaiako-turn-action ${className}`,
+		attr: { type: "button", "aria-label": label },
+	});
+	const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+	svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+	svg.setAttribute("fill", "none");
+	svg.setAttribute("viewBox", "0 0 24 24");
+	svg.setAttribute("stroke-width", "1.5");
+	svg.setAttribute("stroke", "currentColor");
+	svg.setAttribute("class", "kaiako-custom-icon");
+	svg.setAttribute("aria-hidden", "true");
+	const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+	path.setAttribute("d", pathD);
+	path.setAttribute("fill", "none");
+	path.setAttribute("stroke", "currentColor");
+	path.setAttribute("stroke-width", "1.5");
+	path.setAttribute("stroke-linecap", "round");
+	path.setAttribute("stroke-linejoin", "round");
+	svg.appendChild(path);
+	btn.appendChild(svg);
+	return btn;
+}
+
+const CLIPBOARD_PATH =
+	"M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184";
+
+const HEART_PATH =
+	"M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z";
+
+const RESTART_PATH =
+	"M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99";
 
 function shortPath(p: string): string {
 	const parts = p.split(/[/\\]/);

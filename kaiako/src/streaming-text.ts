@@ -3,7 +3,7 @@ const TICK_MS = 9;
 
 export interface StreamRevealHandle {
 	push: (chunk: string) => void;
-	seedIfEmpty: (text: string) => void;
+	setText: (text: string) => void;
 	finish: () => Promise<void>;
 	cancel: () => void;
 }
@@ -19,9 +19,14 @@ export function mountStreamReveal(
 	let resolveFinish: (() => void) | null = null;
 	const transform = opts?.transform ?? ((value: string) => value);
 
-	const caret = el.createSpan({ cls: "kaiako-caret", attr: { "aria-hidden": "true" } });
-	const textEl = el.createSpan({ cls: "kaiako-stream-text" });
-	el.insertBefore(textEl, caret);
+	// Keep the live response in a paragraph, matching the StreamingText component
+	// used by the chat UI while keeping this plugin's vanilla DOM architecture.
+	const prose = el.createEl("p", {
+		cls: "kaiako-stream-prose",
+		attr: { "aria-live": "polite" },
+	});
+	const textEl = prose.createSpan({ cls: "kaiako-stream-text" });
+	const caret = prose.createSpan({ cls: "kaiako-caret", attr: { "aria-hidden": "true" } });
 
 	const visible = () => transform(raw);
 
@@ -41,6 +46,7 @@ export function mountStreamReveal(
 				timer = null;
 			}
 			caret.addClass("kaiako-caret--steady");
+			prose.removeAttribute("aria-live");
 			resolveFinish?.();
 			resolveFinish = null;
 			return;
@@ -61,11 +67,9 @@ export function mountStreamReveal(
 			raw += chunk;
 			ensureTimer();
 		},
-		seedIfEmpty: (text: string) => {
-			if (!raw && text) {
-				raw = text;
-				ensureTimer();
-			}
+		setText: (text: string) => {
+			if (text) raw = text;
+			ensureTimer();
 		},
 		finish: () => {
 			finishing = true;
@@ -77,6 +81,7 @@ export function mountStreamReveal(
 						timer = null;
 					}
 					caret.addClass("kaiako-caret--steady");
+					prose.removeAttribute("aria-live");
 					resolve();
 					return;
 				}

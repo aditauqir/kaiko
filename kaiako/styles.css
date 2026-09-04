@@ -2,6 +2,7 @@
 	height: 100%;
 	overflow: hidden;
 	--kaiako-font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", sans-serif;
+	--kaiako-pop-ease: cubic-bezier(0.19, 1, 0.22, 1);
 	font-family: "LT Superior Serif", "Iowan Old Style", "Palatino Linotype", Palatino, serif;
 }
 
@@ -12,6 +13,14 @@
 	height: 100%;
 	overflow: hidden;
 	color: #2a2622;
+	--text-normal: #2a2622;
+	--text-muted: rgba(42, 38, 34, 0.72);
+	--h1-color: #2a2622;
+	--h2-color: #2a2622;
+	--h3-color: #2a2622;
+	--h4-color: #2a2622;
+	--h5-color: #2a2622;
+	--h6-color: #2a2622;
 }
 
 .kaiako-bg-onboarding,
@@ -288,6 +297,7 @@
 	height: 100%;
 	padding: 0.75rem;
 	gap: 0.65rem;
+	background: transparent;
 }
 
 .kaiako-chat-top {
@@ -329,6 +339,7 @@
 	display: flex;
 	flex-direction: column;
 	gap: 0.4rem;
+	color: #2a2622;
 }
 
 .kaiako-archive-pop h3 {
@@ -396,6 +407,7 @@
 	font-size: clamp(1.8rem, 6vw, 2.5rem);
 	font-weight: 400;
 	letter-spacing: -0.02em;
+	color: #2a2622;
 }
 
 .kaiako-empty-sub {
@@ -416,6 +428,7 @@
 	font-size: 0.85rem;
 	line-height: 1.35;
 	word-break: break-word;
+	color: #2a2622;
 }
 
 .kaiako-turn {
@@ -425,6 +438,66 @@
 	font-size: 0.85rem;
 	line-height: 1.45;
 	word-break: break-word;
+	color: #2a2622;
+}
+
+.kaiako-turn-actions {
+	display: flex;
+	align-items: center;
+	gap: 0.08rem;
+	margin-top: 0.28rem;
+}
+
+.kaiako-turn-action {
+	appearance: none;
+	-webkit-appearance: none;
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.5rem;
+	height: 1.5rem;
+	margin: 0;
+	padding: 0.22rem;
+	border: none;
+	border-radius: 0.35rem;
+	background: transparent !important;
+	color: rgba(42, 38, 34, 0.55);
+	cursor: pointer;
+	box-shadow: none;
+}
+
+.kaiako-turn-action:hover,
+.kaiako-turn-action:focus-visible,
+.kaiako-turn-action:active {
+	color: #2a2622;
+	background: transparent !important;
+	box-shadow: none !important;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-turn-action {
+	color: rgba(245, 245, 244, 0.62);
+}
+
+.kaiako-shell.kaiako-locked .kaiako-turn-action:hover,
+.kaiako-shell.kaiako-locked .kaiako-turn-action:focus-visible,
+.kaiako-shell.kaiako-locked .kaiako-turn-action:active {
+	color: #ffffff;
+	background: transparent !important;
+	box-shadow: none !important;
+}
+
+.kaiako-turn-action svg {
+	display: block;
+	width: 1rem;
+	height: 1rem;
+	stroke: currentColor;
+	fill: none;
+	stroke-width: 1.5;
+}
+
+.kaiako-turn-action.is-liked svg path {
+	fill: currentColor;
 }
 
 .kaiako-root .kaiako-md,
@@ -449,6 +522,7 @@
 
 .kaiako-root .kaiako-md {
 	font-size: 0.85rem;
+	color: #2a2622;
 }
 
 .kaiako-md code,
@@ -507,68 +581,48 @@
 
 .kaiako-shell.kaiako-bg-chat.kaiako-locked {
 	position: relative;
+	isolation: isolate;
 	overflow: hidden;
-	background: #0d0d0d;
 	color: #ffffff;
-	animation: kaiako-dissolve 0.45s ease-in-out both;
+	--text-normal: #ffffff;
+	--text-muted: rgba(255, 255, 255, 0.72);
+	--h1-color: #ffffff;
+	--h2-color: #ffffff;
+	--h3-color: #ffffff;
+	--h4-color: #ffffff;
+	--h5-color: #ffffff;
+	--h6-color: #ffffff;
+	/* Clear the normal chat gradient so the Focus image is the only visual background. */
+	background: #0d0d0d;
 }
 
 .kaiako-shell.kaiako-bg-chat.kaiako-locked::before {
 	content: "";
 	position: absolute;
-	inset: -40%;
+	inset: -12%;
 	z-index: 0;
 	pointer-events: none;
-	background-color: #0d0d0d;
-	background-image:
-		radial-gradient(ellipse 72% 34% at 50% 40%, #687480 0%, #687480 22%, transparent 48%),
-		radial-gradient(ellipse 108% 68% at 38% 16%, #dcedff 0%, #dcedff 32%, transparent 56%),
-		radial-gradient(ellipse 148% 42% at 50% 58%, #01b8ee 0%, #01b8ee 28%, transparent 52%),
-		radial-gradient(ellipse 128% 92% at 18% 86%, #0b1524 0%, #0b1524 40%, transparent 66%),
-		linear-gradient(135deg, #1c242c 10%, #2a333c 30%, #06384a 50%, #0b1524 70%, #0d0d0d 90%);
-	background-image:
-		radial-gradient(ellipse 72% 34% at 50% 40% in oklab, #687480 0%, #687480 22%, transparent 48%),
-		radial-gradient(ellipse 108% 68% at 38% 16% in oklab, #dcedff 0%, #dcedff 32%, transparent 56%),
-		radial-gradient(ellipse 148% 42% at 50% 58% in oklab, #01b8ee 0%, #01b8ee 28%, transparent 52%),
-		radial-gradient(ellipse 128% 92% at 18% 86% in oklab, #0b1524 0%, #0b1524 40%, transparent 66%),
-		linear-gradient(135deg in oklab, #1c242c 10%, #2a333c 30%, #06384a 50%, #0b1524 70%, #0d0d0d 90%);
-	background-size:
-		90% 62%,
-		145% 118%,
-		158% 86%,
-		132% 148%,
-		100% 100%;
-	background-repeat: no-repeat;
-	animation: kaiako-flow-lock 22s ease-in-out infinite;
+	background: #0d0d0d url("assets/focus-background.png") center / cover no-repeat;
+	/* The supplied image is downsampled first; blur softens those pixel blocks. */
+	image-rendering: pixelated;
+	filter: blur(clamp(1rem, 2.5vw, 2.25rem));
+	transform: scale(1.12);
+	opacity: 0.9;
+	animation: kaiako-focus-drift 28s ease-in-out infinite alternate;
 }
 
-@keyframes kaiako-flow-lock {
+@keyframes kaiako-focus-drift {
 	0% {
-		background-position:
-			22% 38%,
-			4% 8%,
-			92% 68%,
-			0% 96%,
-			0% 0%;
-		transform: translate3d(-14%, -10%, 0);
+		background-position: 42% 38%;
+		transform: scale(1.12) translate3d(-1.5%, -1%, 0);
 	}
 	50% {
-		background-position:
-			74% 46%,
-			82% 26%,
-			8% 46%,
-			38% 72%,
-			0% 0%;
-		transform: translate3d(14%, 10%, 0);
+		background-position: 58% 46%;
+		transform: scale(1.16) translate3d(1.5%, 1%, 0);
 	}
 	100% {
-		background-position:
-			22% 38%,
-			4% 8%,
-			92% 68%,
-			0% 96%,
-			0% 0%;
-		transform: translate3d(-14%, -10%, 0);
+		background-position: 42% 38%;
+		transform: scale(1.12) translate3d(-1.5%, -1%, 0);
 	}
 }
 
@@ -576,13 +630,25 @@
 .kaiako-shell.kaiako-locked .kaiako-chat-greet,
 .kaiako-shell.kaiako-locked .kaiako-hint,
 .kaiako-shell.kaiako-locked .kaiako-empty,
+.kaiako-shell.kaiako-locked .kaiako-empty-title,
 .kaiako-shell.kaiako-locked .kaiako-meta,
 .kaiako-shell.kaiako-locked .kaiako-archive-title,
 .kaiako-shell.kaiako-locked .kaiako-archive-pop,
 .kaiako-shell.kaiako-locked .kaiako-prompt-input,
 .kaiako-shell.kaiako-locked .kaiako-icon-btn,
 .kaiako-shell.kaiako-locked .kaiako-prompt-row-name,
-.kaiako-shell.kaiako-locked .kaiako-prompt-row-desc {
+.kaiako-shell.kaiako-locked .kaiako-prompt-row-desc,
+.kaiako-shell.kaiako-locked .kaiako-md,
+.kaiako-shell.kaiako-locked .kaiako-md p,
+.kaiako-shell.kaiako-locked .kaiako-md li,
+.kaiako-shell.kaiako-locked .kaiako-md h1,
+.kaiako-shell.kaiako-locked .kaiako-md h2,
+.kaiako-shell.kaiako-locked .kaiako-md h3,
+.kaiako-shell.kaiako-locked .kaiako-md h4,
+.kaiako-shell.kaiako-locked .kaiako-md h5,
+.kaiako-shell.kaiako-locked .kaiako-md h6,
+.kaiako-shell.kaiako-locked .kaiako-turn,
+.kaiako-shell.kaiako-locked .kaiako-bubble {
 	color: #ffffff;
 }
 
@@ -604,14 +670,13 @@
 }
 
 .kaiako-shell.kaiako-locked .kaiako-noise {
-	z-index: 0;
-	opacity: 0.04;
-	mix-blend-mode: overlay;
+	display: none;
 }
 
-@keyframes kaiako-dissolve {
-	from { opacity: 0.35; }
-	to { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+	.kaiako-shell.kaiako-bg-chat.kaiako-locked::before {
+		animation: none;
+	}
 }
 
 .kaiako-archive-pop {
@@ -623,7 +688,8 @@
 	backdrop-filter: blur(14px) saturate(1.12);
 	-webkit-backdrop-filter: blur(14px) saturate(1.12);
 	box-shadow: 0 0.8rem 1.8rem rgba(42, 38, 34, 0.18);
-	animation: kaiako-glass-in 0.38s cubic-bezier(0.23, 1, 0.32, 1) both;
+	animation: kaiako-glass-in 0.38s var(--kaiako-pop-ease) both;
+	transition-timing-function: var(--kaiako-pop-ease);
 }
 
 @keyframes kaiako-glass-in {
@@ -672,7 +738,7 @@
 	text-align: left;
 	font: inherit;
 	font-family: var(--kaiako-font-ui);
-	color: inherit;
+	color: #2a2622;
 	cursor: pointer;
 	overflow: hidden;
 }
@@ -717,6 +783,7 @@
 
 .kaiako-shell.kaiako-locked .kaiako-archive-pop button.kaiako-archive-session {
 	border-bottom-color: rgba(255, 255, 255, 0.16);
+	color: #ffffff;
 }
 
 .kaiako-shell.kaiako-locked .kaiako-archive-pop button.kaiako-archive-session:hover {
@@ -770,26 +837,50 @@
 }
 
 .kaiako-settings-modal .vertical-tabs-container {
+	display: flex;
+	align-items: stretch;
 	height: 100%;
+	min-height: 0;
 	box-sizing: border-box;
-	gap: clamp(0.5rem, 1.2vw, 1rem);
-	padding: clamp(0.5rem, 1.2vw, 1rem);
+	gap: 0;
+	padding: 0;
 }
 
 .kaiako-settings-modal .vertical-tab-header {
-	padding: 0.25rem;
-	border-radius: 0.75rem;
+	align-self: stretch;
+	height: 100%;
+	min-height: 0;
+	margin: 0;
+	padding: clamp(0.65rem, 1.4vh, 0.9rem) clamp(0.5rem, 1vw, 0.75rem);
+	border-radius: 0;
+	border-right: 1px solid var(--background-modifier-border);
+	box-sizing: border-box;
+	overflow: auto;
+}
+
+.kaiako-settings-modal .vertical-tab-content-container {
+	align-self: stretch;
+	flex: 1 1 auto;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+}
+
+.kaiako-settings-modal .vertical-tab-content {
+	padding-block: clamp(0.85rem, 2.2vh, 1.35rem);
+	padding-inline: clamp(1rem, 2.4vw, 1.75rem);
+	box-sizing: border-box;
 }
 
 .kaiako-settings-modal .vertical-tab-nav-item {
-	margin-inline: 0.25rem;
+	margin-inline: 0.15rem;
 	padding-block: 0.34em;
 	padding-inline: 0.65em;
 	border-radius: 0.55rem;
 }
 
 .kaiako-settings-search {
-	padding: 12px 12px 8px;
+	padding: 0.75rem 0.5rem 0.5rem;
 }
 
 .kaiako-settings-search .search-input {
@@ -799,7 +890,7 @@
 
 .kaiako-settings-nav-icon {
 	display: inline-flex;
-	margin-inline-end: 8px;
+	margin-inline-end: 0.5rem;
 	opacity: 0.85;
 }
 
@@ -845,15 +936,20 @@
 .kaiako-settings-provider-options {
 	display: flex;
 	flex-direction: column;
+	width: 100%;
 	margin: 0.35rem 0 1rem;
+	padding: 0;
 }
 
 .kaiako-settings-provider-option {
-	display: flex;
+	display: grid;
+	grid-template-columns: 1.85rem minmax(0, 1fr) auto;
 	align-items: center;
-	gap: 0.7rem;
+	column-gap: 0.7rem;
 	min-width: 0;
-	padding: 0.65rem 0.2rem;
+	width: 100%;
+	margin: 0;
+	padding: 0.65rem 0;
 	border: none;
 	border-bottom: 1px solid var(--background-modifier-border);
 	border-radius: 0;
@@ -874,12 +970,17 @@
 }
 
 .kaiako-settings-provider-logo {
+	display: block;
 	width: 1.85rem;
 	height: 1.85rem;
-}
-
-.kaiako-settings-provider-logo.kaiako-provider-logo--openrouter {
-	width: 2.7rem;
+	max-width: 1.85rem;
+	max-height: 1.85rem;
+	margin: 0;
+	padding: 0;
+	justify-self: start;
+	object-fit: contain;
+	object-position: center;
+	flex: none;
 }
 
 .theme-dark .kaiako-settings-provider-logo.kaiako-provider-logo--openai {
@@ -987,15 +1088,56 @@
 	background: transparent !important;
 }
 
+.kaiako-settings-modal .setting-item {
+	padding-inline: 0;
+}
+
+.kaiako-key-check-chip {
+	display: inline-flex;
+	align-items: center;
+	flex: none;
+	padding: 0.12rem 0.45rem;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 999px;
+	background: var(--background-primary);
+	color: var(--text-muted);
+	font-size: 0.7rem;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	line-height: 1.2;
+	white-space: nowrap;
+}
+
+.kaiako-key-check-chip.is-checking {
+	color: var(--text-muted);
+}
+
+.kaiako-key-check-chip.is-valid {
+	color: #2fa66a;
+	border-color: color-mix(in srgb, #2fa66a 40%, var(--background-modifier-border));
+}
+
+.kaiako-key-check-chip.is-invalid {
+	color: var(--text-error);
+	border-color: color-mix(in srgb, var(--text-error) 40%, var(--background-modifier-border));
+}
+
+.kaiako-key-check-refresh.is-disabled {
+	opacity: 0.45;
+	pointer-events: none;
+}
+
 @media (max-width: 36rem) {
 	.kaiako-settings-provider-option {
-		flex-wrap: wrap;
-		align-items: flex-start;
+		grid-template-columns: 1.85rem minmax(0, 1fr);
+		align-items: start;
 	}
 
 	.kaiako-settings-provider-action {
-		flex-basis: 100%;
-		margin-left: 2.55rem;
+		grid-column: 2;
+		flex-basis: auto;
+		margin-left: 0;
+		justify-self: start;
 	}
 }
 
@@ -1016,7 +1158,8 @@
 	backdrop-filter: blur(16px);
 	border: 1px solid rgba(42, 38, 34, 0.1);
 	box-shadow: 0 0.6rem 1.4rem rgba(42, 38, 34, 0.12);
-	animation: kaiako-glass-in 0.18s cubic-bezier(0.23, 1, 0.32, 1) both;
+	animation: kaiako-glass-in 0.18s var(--kaiako-pop-ease) both;
+	transition-timing-function: var(--kaiako-pop-ease);
 }
 
 .kaiako-prompt-model-menu {
@@ -1063,7 +1206,7 @@
 .kaiako-prompt-composer {
 	position: relative;
 	isolation: isolate;
-	overflow: hidden;
+	overflow: visible;
 	display: flex;
 	flex-direction: column;
 	gap: 0.4rem;
@@ -1073,29 +1216,29 @@
 	background: rgba(0, 0, 0, 0.55);
 	backdrop-filter: blur(16px);
 	color: #f5f5f4;
+	--text-normal: #f5f5f4;
+	--text-muted: rgba(245, 245, 244, 0.55);
 }
 
 .kaiako-shell.kaiako-locked .kaiako-prompt-composer {
-	background: var(--background-primary);
-	background: color-mix(in srgb, var(--background-primary) 55%, transparent);
-	border-color: var(--background-modifier-border);
-	border-color: color-mix(in srgb, var(--background-primary) 80%, #ffffff 20%);
-	color: var(--text-normal);
+	background: rgba(0, 0, 0, 0.55);
+	border-color: rgba(255, 255, 255, 0.22);
+	color: #f5f5f4;
 }
 
 .theme-light .kaiako-shell.kaiako-locked .kaiako-prompt-composer {
-	border-color: color-mix(in srgb, var(--background-primary) 70%, #ffffff 30%);
+	border-color: rgba(255, 255, 255, 0.22);
 }
 
 .kaiako-shell.kaiako-locked .kaiako-prompt-composer .kaiako-prompt-input,
 .kaiako-shell.kaiako-locked .kaiako-prompt-composer .kaiako-icon-btn,
 .kaiako-shell.kaiako-locked .kaiako-prompt-composer .kaiako-status-btn,
 .kaiako-shell.kaiako-locked .kaiako-prompt-composer .kaiako-status-btn.is-live {
-	color: var(--text-normal);
+	color: #f5f5f4;
 }
 
 .kaiako-shell.kaiako-locked .kaiako-prompt-composer .kaiako-prompt-input::placeholder {
-	color: var(--text-muted);
+	color: rgba(245, 245, 244, 0.55);
 }
 
 .kaiako-prompt-chips {
@@ -1157,6 +1300,11 @@
 	stroke-width: 1.5;
 }
 
+.kaiako-prompt-send.kaiako-prompt-icon .kaiako-custom-icon {
+	width: 0.82rem !important;
+	height: 0.82rem !important;
+}
+
 .kaiako-prompt-icon .kaiako-custom-icon path {
 	display: block;
 	fill: none !important;
@@ -1181,31 +1329,153 @@
 	box-shadow: none !important;
 }
 
-.kaiako-status-btn.is-live {
+.kaiako-status-btn.is-live,
+.kaiako-status-btn.is-searching {
 	opacity: 1;
 	color: #d4d4d4;
 }
 
-.kaiako-prompt-send {
-	box-sizing: border-box;
+.kaiako-internet-wrap {
+	position: relative;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	width: 1.75rem;
 	height: 1.75rem;
-	min-width: 1.75rem;
+	flex: 0 0 1.75rem;
+	align-self: end;
+}
+
+.kaiako-internet-btn {
+	position: relative;
+	overflow: visible;
+	isolation: isolate;
+}
+
+.kaiako-internet-btn.is-live::before,
+.kaiako-internet-btn.is-searching::before {
+	content: "";
+	position: absolute;
+	inset: -0.18rem;
+	z-index: 0;
+	border-radius: 50%;
+	pointer-events: none;
+	background: conic-gradient(
+		from 0deg,
+		transparent 0%,
+		transparent 58%,
+		rgba(212, 212, 212, 0.08) 68%,
+		rgba(255, 255, 252, 0.85) 78%,
+		rgba(212, 212, 212, 0.12) 88%,
+		transparent 100%
+	);
+	-webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 0.16rem), #000 calc(100% - 0.15rem));
+	mask: radial-gradient(farthest-side, transparent calc(100% - 0.16rem), #000 calc(100% - 0.15rem));
+	animation: kaiako-globe-shine 4s ease-in infinite;
+}
+
+.kaiako-internet-btn .kaiako-custom-icon {
+	position: relative;
+	z-index: 1;
+}
+
+@keyframes kaiako-globe-shine {
+	from { transform: rotate(0deg); }
+	to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.kaiako-internet-btn.is-live::before,
+	.kaiako-internet-btn.is-searching::before {
+		animation: none;
+		opacity: 0.55;
+	}
+}
+
+.kaiako-prompt-icon {
+	appearance: none;
+	-webkit-appearance: none;
+	position: relative;
+	z-index: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.75rem;
 	min-height: 1.75rem;
-	padding: 0.36rem;
-	aspect-ratio: 1;
-	border-radius: 50% !important;
-	overflow: hidden;
-	background: #ffffff !important;
-	color: #000000 !important;
-	opacity: 1;
+	padding: 0;
+	border: none;
+	border-radius: 0.5rem;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
 	box-shadow: none;
 }
 
-.kaiako-prompt-send.is-ready {
+.kaiako-root .kaiako-prompt-composer button.kaiako-prompt-send,
+.kaiako-root .kaiako-prompt-composer button.kaiako-prompt-send.kaiako-prompt-icon,
+.kaiako-root .kaiako-prompt-composer button.kaiako-prompt-send.mod-cta,
+.kaiako-root .kaiako-prompt-composer button.kaiako-prompt-send.clickable-icon {
+	appearance: none !important;
+	-webkit-appearance: none !important;
+	box-sizing: border-box !important;
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	align-self: end;
+	flex: 0 0 1.75rem !important;
+	inline-size: 1.75rem !important;
+	block-size: 1.75rem !important;
+	width: 1.75rem !important;
+	height: 1.75rem !important;
+	min-width: 1.75rem !important;
+	max-width: 1.75rem !important;
+	min-height: 1.75rem !important;
+	max-height: 1.75rem !important;
+	margin: 0 !important;
+	padding: 0.36rem !important;
+	border: none !important;
+	outline: none;
+	aspect-ratio: 1 / 1 !important;
+	border-radius: 50% !important;
+	overflow: visible;
+	line-height: 0;
+	background: #ffffff !important;
+	color: #000000 !important;
+	opacity: 1;
+	box-shadow: none !important;
+	cursor: pointer;
+}
+
+.kaiako-root .kaiako-prompt-composer button.kaiako-prompt-send.is-ready {
+	inline-size: 1.75rem !important;
+	block-size: 1.75rem !important;
+	aspect-ratio: 1 / 1 !important;
+	border-radius: 50% !important;
 	opacity: 1;
 	background: #ffffff !important;
 	color: #000000 !important;
+}
+
+.kaiako-root .kaiako-prompt-composer button.kaiako-prompt-send:hover,
+.kaiako-root .kaiako-prompt-composer button.kaiako-prompt-send:focus-visible {
+	inline-size: 1.75rem !important;
+	block-size: 1.75rem !important;
+	aspect-ratio: 1 / 1 !important;
+	background: #fffffc !important;
+	color: #000000 !important;
+	border-radius: 50% !important;
+	box-shadow: 0 0 0 0.12rem rgba(255, 255, 252, 0.55) !important;
+}
+
+.kaiako-root .kaiako-prompt-composer button.kaiako-prompt-send:focus,
+.kaiako-root .kaiako-prompt-composer button.kaiako-prompt-send:active {
+	inline-size: 1.75rem !important;
+	block-size: 1.75rem !important;
+	aspect-ratio: 1 / 1 !important;
+	background: #fffffc !important;
+	color: #000000 !important;
+	border-radius: 50% !important;
 }
 
 .kaiako-prompt-send svg,
@@ -1224,52 +1494,32 @@
 	stroke-width: 2.2 !important;
 }
 
-.kaiako-prompt-icon {
-	border: none;
-	cursor: pointer;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	min-height: 1.75rem;
-	border-radius: 0.5rem;
+.kaiako-tip::after {
+	content: attr(data-tooltip);
+	position: absolute;
+	left: 50%;
+	bottom: calc(100% + 0.4rem);
+	z-index: 20;
+	padding: 0.22rem 0.48rem;
+	border-radius: 0.4rem;
+	background: rgba(18, 16, 14, 0.94);
+	color: #fffffc;
+	font-family: var(--kaiako-font-ui);
+	font-size: 0.68rem;
+	font-weight: 500;
+	line-height: 1.2;
+	letter-spacing: 0.02em;
+	white-space: nowrap;
+	opacity: 0;
+	pointer-events: none;
+	transform: translateX(-50%) translateY(0.12rem);
+	transition: opacity 0.12s ease, transform 0.12s ease;
 }
 
-.kaiako-prompt-icon {
-	position: relative;
-	z-index: 1;
-	width: 1.75rem;
-	background: transparent;
-	color: inherit;
-}
-
-.kaiako-prompt-send {
-	border: none;
-	cursor: pointer;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 1.75rem;
-	height: 1.75rem;
-	min-width: 1.75rem;
-	min-height: 1.75rem;
-	padding: 0.36rem;
-	aspect-ratio: 1;
-	border-radius: 50% !important;
-	overflow: hidden;
-	flex: 0 0 1.75rem;
-	align-self: end;
-	background: #ffffff !important;
-	color: #000000 !important;
-}
-
-.kaiako-prompt-send:hover,
-.kaiako-prompt-send:focus,
-.kaiako-prompt-send:focus-visible,
-.kaiako-prompt-send:active {
-	background: #ffffff !important;
-	color: #000000 !important;
-	border-radius: 50% !important;
-	box-shadow: none !important;
+.kaiako-tip:hover::after,
+.kaiako-tip:focus-visible::after {
+	opacity: 1;
+	transform: translateX(-50%) translateY(0);
 }
 
 .kaiako-prompt-input {
@@ -1316,8 +1566,8 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 0.4rem;
-	align-self: flex-start;
-	margin-left: 0.35rem;
+	align-self: center;
+	margin-inline: auto;
 	padding: 0.2rem 0.55rem 0.2rem 0.28rem;
 	border-radius: 999px;
 	border: 1px solid rgba(42, 38, 34, 0.12);
@@ -1326,6 +1576,16 @@
 	color: #2a2622;
 	font-size: clamp(0.68rem, 1.5vw, 0.78rem);
 	letter-spacing: 0.02em;
+	transition-timing-function: var(--kaiako-pop-ease);
+}
+
+.kaiako-orb-pill.is-live {
+	animation: kaiako-orb-in 0.38s var(--kaiako-pop-ease) both;
+}
+
+@keyframes kaiako-orb-in {
+	from { opacity: 0; transform: translateY(-0.35rem) scale(0.96); }
+	to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .kaiako-orb-pill[hidden] {
@@ -1350,6 +1610,11 @@
 }
 
 .kaiako-stream {
+	white-space: pre-wrap;
+}
+
+.kaiako-stream-prose {
+	margin: 0;
 	white-space: pre-wrap;
 }
 
@@ -1386,72 +1651,268 @@
 	font-size: 0.82em;
 }
 
-.kaiako-mcq {
+.kaiako-mcq-root {
 	align-self: stretch;
 	display: flex;
+	width: 100%;
+}
+
+.kaiako-mcq {
+	position: relative;
+	overflow: hidden;
+	display: flex;
 	flex-direction: column;
-	gap: 0.45rem;
+	width: min(100%, 20rem);
+	max-width: 100%;
 	margin-top: 0.2rem;
-	padding: 0.7rem 0.75rem;
 	border-radius: 0.85rem;
 	border: 1px solid rgba(42, 38, 34, 0.12);
-	background: rgba(255, 255, 252, 0.78);
+	background: rgba(255, 255, 252, 0.92);
+	box-shadow: 0 0.75rem 1.5rem rgba(42, 38, 34, 0.1);
+	animation: kaiako-mcq-in 0.38s var(--kaiako-pop-ease) both;
+	transition-timing-function: var(--kaiako-pop-ease);
+}
+
+@keyframes kaiako-mcq-in {
+	from { opacity: 0; transform: translateY(-0.35rem) scale(0.98); }
+	to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.kaiako-mcq-card-pad {
+	padding: 0.95rem 0.9rem 0.8rem;
+}
+
+.kaiako-mcq-dismiss {
+	position: absolute;
+	top: 0.6rem;
+	right: 0.6rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.5rem;
+	height: 1.5rem;
+	padding: 0;
+	border: none;
+	border-radius: 0.45rem;
+	background: transparent;
+	color: rgba(42, 38, 34, 0.52);
+	cursor: pointer;
+}
+
+.kaiako-mcq-dismiss:hover,
+.kaiako-mcq-dismiss:focus-visible {
+	background: rgba(42, 38, 34, 0.06);
+	color: #2a2622;
+}
+
+.kaiako-mcq-question {
+	padding-right: 1.75rem;
 }
 
 .kaiako-mcq-stem {
-	font-size: 0.85rem;
-	line-height: 1.4;
+	font-size: 0.875rem;
+	font-weight: 500;
+	line-height: 1.35;
 }
 
 .kaiako-mcq-stem p {
-	margin: 0.15rem 0;
+	margin: 0;
 }
 
 .kaiako-mcq-options {
 	display: flex;
 	flex-direction: column;
-	gap: 0.35rem;
+	gap: 0.25rem;
+	margin-top: 0.625rem;
 }
 
-.kaiako-mcq-option {
+.kaiako-mcq-option,
+.kaiako-mcq-custom {
 	display: flex;
-	align-items: flex-start;
-	gap: 0.5rem;
+	align-items: center;
+	gap: 0.375rem;
 	width: 100%;
-	padding: 0.5rem 0.6rem;
-	border-radius: 0.65rem;
-	border: 1px solid rgba(42, 38, 34, 0.12);
-	background: rgba(255, 255, 252, 0.9);
+	min-width: 0;
+	padding: 0.25rem 0.5rem 0.25rem 0.25rem;
+	border: none;
+	border-radius: 0.45rem;
+	background: transparent !important;
 	color: inherit;
 	font: inherit;
 	text-align: left;
 	cursor: pointer;
+	transition: background-color 0.1s ease;
 }
 
-.kaiako-mcq-option:hover {
-	border-color: rgba(42, 38, 34, 0.28);
+.kaiako-mcq-option:hover,
+.kaiako-mcq-option:focus-visible,
+.kaiako-mcq-custom:focus-within {
+	background: rgba(42, 38, 34, 0.06) !important;
 }
 
-.kaiako-mcq-key {
+.kaiako-mcq-option[aria-pressed="true"] {
+	background: rgba(42, 38, 34, 0.06) !important;
+}
+
+.kaiako-mcq-indicator {
+	display: inline-flex;
 	flex: 0 0 auto;
-	min-width: 1.25rem;
-	font-size: 0.78rem;
-	opacity: 0.62;
+	align-items: center;
+	justify-content: center;
+	width: 1rem;
+	height: 1rem;
+	border-radius: 50%;
+	box-shadow: inset 0 0 0 1.5px rgba(42, 38, 34, 0.45);
+	color: transparent;
+	transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kaiako-mcq-dot {
+	width: 0.375rem;
+	height: 0.375rem;
+	border-radius: 50%;
+	background: #fffffc;
+	transform: scale(0);
+	transition: transform 0.2s ease;
+}
+
+.kaiako-mcq-option[aria-pressed="true"] .kaiako-mcq-indicator {
+	box-shadow: none;
+	background: #2a2622;
+	color: #fffffc;
+}
+
+.kaiako-mcq-option[aria-pressed="true"] .kaiako-mcq-dot {
+	transform: scale(1);
+}
+
+.kaiako-mcq-text {
+	min-width: 0;
+	font-size: 0.8125rem;
+	line-height: 1.25;
+	color: rgba(42, 38, 34, 0.72);
+	transition: color 0.2s ease;
+}
+
+.kaiako-mcq-option[aria-pressed="true"] .kaiako-mcq-text {
+	color: #2a2622;
 }
 
 .kaiako-mcq-text p {
 	margin: 0;
 }
 
-.kaiako-mcq-skip {
-	align-self: flex-start;
-	border: none;
-	background: transparent;
-	color: rgba(42, 38, 34, 0.58);
+.kaiako-mcq-custom-input {
+	min-width: 0;
+	flex: 1 1 auto;
+	padding: 0 0 0 0.375rem;
+	border: none !important;
+	outline: none !important;
+	background: transparent !important;
+	box-shadow: none !important;
+	color: #2a2622;
 	font: inherit;
-	font-size: 0.82rem;
+	font-size: 0.8125rem;
+}
+
+.kaiako-mcq-custom-input::placeholder {
+	color: rgba(42, 38, 34, 0.45);
+}
+
+.kaiako-mcq-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	padding: 0.65rem 0.9rem 0.7rem;
+	border-top: 1px solid rgba(42, 38, 34, 0.1);
+}
+
+.kaiako-mcq-progress,
+.kaiako-mcq-actions {
+	display: flex;
+	align-items: center;
+}
+
+.kaiako-mcq-progress {
+	gap: 0.25rem;
+	color: rgba(42, 38, 34, 0.55);
+	font-family: var(--kaiako-font-ui);
+	font-size: 0.75rem;
+	font-variant-numeric: tabular-nums;
+	font-weight: 500;
+}
+
+.kaiako-mcq-nav {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.125rem;
+	height: 1.125rem;
+	padding: 0;
+	border: none;
+	border-radius: 0.3rem;
+	background: transparent !important;
+	color: inherit;
 	cursor: pointer;
-	padding: 0.15rem 0.1rem;
+}
+
+.kaiako-mcq-nav:disabled {
+	opacity: 0.28;
+	cursor: default;
+}
+
+.kaiako-mcq-actions {
+	gap: 0.375rem;
+}
+
+.kaiako-mcq-action {
+	padding: 0.35rem 0.65rem;
+	border: none;
+	border-radius: 999px;
+	font-family: var(--kaiako-font-ui);
+	font-size: 0.75rem;
+	font-weight: 500;
+	line-height: 1.1;
+	cursor: pointer;
+}
+
+.kaiako-mcq-skip {
+	background: transparent !important;
+	color: rgba(42, 38, 34, 0.6);
+}
+
+.kaiako-mcq-skip:hover,
+.kaiako-mcq-skip:focus-visible {
+	color: #2a2622;
+}
+
+.kaiako-mcq-answer {
+	background: #2a2622 !important;
+	color: #fffffc;
+	box-shadow: 0 0.2rem 0.55rem rgba(42, 38, 34, 0.16);
+}
+
+.kaiako-mcq-answer:disabled {
+	opacity: 0.35;
+	cursor: default;
+}
+
+.kaiako-mcq-reopen {
+	align-self: flex-start;
+	padding: 0.35rem 0.7rem;
+	border: none;
+	border-radius: 999px;
+	background: rgba(255, 255, 252, 0.72);
+	color: #2a2622;
+	font-family: var(--kaiako-font-ui);
+	font-size: 0.75rem;
+	font-weight: 500;
+	cursor: pointer;
+}
+
+.kaiako-mcq-reopen[hidden] {
+	display: none;
 }
 
 .kaiako-score-chip {
@@ -1468,47 +1929,108 @@
 	opacity: 0.8;
 }
 
-.theme-dark .kaiako-orb-pill,
 .kaiako-shell.kaiako-locked .kaiako-orb-pill {
 	border-color: rgba(255, 255, 255, 0.18);
 	background: rgba(255, 255, 255, 0.08);
 	color: #ffffff;
 }
 
-.theme-dark .kaiako-mcq,
 .kaiako-shell.kaiako-locked .kaiako-mcq {
 	border-color: rgba(255, 255, 255, 0.16);
-	background: rgba(255, 255, 255, 0.08);
+	background: rgba(16, 18, 28, 0.88);
 	color: #ffffff;
 }
 
-.theme-dark .kaiako-mcq-option,
 .kaiako-shell.kaiako-locked .kaiako-mcq-option {
-	border-color: rgba(255, 255, 255, 0.16);
-	background: rgba(255, 255, 255, 0.06);
+	background: transparent !important;
 	color: #ffffff;
 }
 
-.theme-dark .kaiako-mcq-skip,
+.kaiako-shell.kaiako-locked .kaiako-mcq-option:hover,
+.kaiako-shell.kaiako-locked .kaiako-mcq-option:focus-visible,
+.kaiako-shell.kaiako-locked .kaiako-mcq-option[aria-pressed="true"],
+.kaiako-shell.kaiako-locked .kaiako-mcq-custom:focus-within {
+	background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-mcq-indicator {
+	box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.45);
+}
+
+.kaiako-shell.kaiako-locked .kaiako-mcq-option[aria-pressed="true"] .kaiako-mcq-indicator {
+	background: #ffffff;
+	box-shadow: none;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-mcq-option[aria-pressed="true"] .kaiako-mcq-dot {
+	background: #2a2622;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-mcq-text,
+.kaiako-shell.kaiako-locked .kaiako-mcq-option[aria-pressed="true"] .kaiako-mcq-text {
+	color: #ffffff;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-mcq-custom-input {
+	color: #ffffff;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-mcq-custom-input::placeholder,
 .kaiako-shell.kaiako-locked .kaiako-mcq-skip {
 	color: rgba(255, 255, 255, 0.62);
 }
 
-.theme-dark .kaiako-math-fallback,
+.kaiako-shell.kaiako-locked .kaiako-mcq-footer {
+	border-top-color: rgba(255, 255, 255, 0.16);
+}
+
+.kaiako-shell.kaiako-locked .kaiako-mcq-dismiss,
+.kaiako-shell.kaiako-locked .kaiako-mcq-progress {
+	color: rgba(255, 255, 255, 0.62);
+}
+
+.kaiako-shell.kaiako-locked .kaiako-mcq-dismiss:hover,
+.kaiako-shell.kaiako-locked .kaiako-mcq-dismiss:focus-visible {
+	background: rgba(255, 255, 255, 0.08);
+	color: #ffffff;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-mcq-answer {
+	background: #ffffff !important;
+	color: #2a2622;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-mcq-reopen {
+	background: rgba(255, 255, 255, 0.12);
+	color: #ffffff;
+}
+
 .kaiako-shell.kaiako-locked .kaiako-math-fallback {
 	background: rgba(255, 255, 255, 0.1);
 	color: rgba(255, 255, 255, 0.72);
 }
 
-.theme-dark .kaiako-score-chip,
 .kaiako-shell.kaiako-locked .kaiako-score-chip {
 	background: rgba(255, 255, 255, 0.1);
 	color: rgba(255, 255, 255, 0.78);
 }
 
-.theme-dark .kaiako-bubble,
 .kaiako-shell.kaiako-locked .kaiako-bubble {
 	background: rgba(255, 255, 255, 0.08);
 	border-color: rgba(255, 255, 255, 0.14);
 	color: #ffffff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.kaiako-archive-pop,
+	.kaiako-prompt-menu,
+	.kaiako-prompt-model-menu,
+	.kaiako-orb-pill,
+	.kaiako-mcq,
+	.kaiako-mcq-indicator,
+	.kaiako-mcq-dot,
+	.kaiako-mcq-text {
+		animation: none;
+		transition: none;
+	}
 }

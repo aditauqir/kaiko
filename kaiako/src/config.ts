@@ -24,6 +24,7 @@ export interface SessionMeta {
 	teachingEntry?: number;
 	accuracy?: number;
 	diagnosticItems?: DiagnosticItemRecord[];
+	likedTurns?: number[];
 }
 
 export interface ApiKeyEntry {

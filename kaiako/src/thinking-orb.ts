@@ -1,3 +1,5 @@
+import type { SessionPhase } from "./config";
+
 export type OrbState =
 	| "working"
 	| "searching"
@@ -18,8 +20,25 @@ const LABELS: Record<OrbState, string> = {
 	weaving: "weaving",
 	composing: "composing",
 	breathing: "breathing",
-	shaping: "shaping",
+	shaping: "agent planning",
 };
+
+export interface OrbPhasePresentation {
+	state: OrbState;
+	label: string;
+}
+
+const PHASE_ORBS: Record<SessionPhase, OrbPhasePresentation> = {
+	need_goal: { state: "listening", label: "goal setting" },
+	// The diagnostic phase is currently our smoke-test path, so it uses the
+	// agent-planning visual with the requested smoke-testing label.
+	diagnostic: { state: "shaping", label: "smoke testing" },
+	teaching: { state: "composing", label: "teaching" },
+};
+
+export function orbForPhase(phase: SessionPhase): OrbPhasePresentation {
+	return PHASE_ORBS[phase];
+}
 
 export function orbStateForTool(toolName: string): OrbState {
 	const name = toolName.toLowerCase();
@@ -35,7 +54,7 @@ export function orbStateForTool(toolName: string): OrbState {
 }
 
 export interface ThinkingOrbHandle {
-	setState: (state: OrbState | null) => void;
+	setState: (state: OrbState | null, labelOverride?: string) => void;
 	destroy: () => void;
 }
 
@@ -98,7 +117,7 @@ export function mountThinkingOrb(parent: HTMLElement): ThinkingOrbHandle {
 	};
 
 	return {
-		setState: (next) => {
+		setState: (next, labelOverride) => {
 			state = next;
 			if (!next) {
 				pill.setAttr("hidden", "true");
@@ -108,8 +127,9 @@ export function mountThinkingOrb(parent: HTMLElement): ThinkingOrbHandle {
 			}
 			pill.removeAttribute("hidden");
 			pill.addClass("is-live");
-			label.setText(LABELS[next]);
-			pill.setAttr("aria-label", LABELS[next]);
+			const displayLabel = labelOverride ?? LABELS[next];
+			label.setText(displayLabel);
+			pill.setAttr("aria-label", displayLabel);
 			start = performance.now();
 			startLoop();
 		},

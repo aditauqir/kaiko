@@ -1,15 +1,13 @@
-import { FileSystemAdapter, Platform, type App } from "obsidian";
-import { spawn, type ChildProcess } from "child_process";
-import { execFile } from "child_process";
-import { promisify } from "util";
+import { FileSystemAdapter, type App } from "obsidian";
+import type { ChildProcess } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { execCli, execNpm, forgetResolvedCli, rememberGlobalNpmBin, spawnCli } from "./cli-path";
 import { activeKey, type KaiakoConfig } from "./config";
 import { envForApiKey, getProvider, piProviderFlag } from "./providers";
 import { syncPiHarness } from "./skills-sync";
 
-const execFileAsync = promisify(execFile);
 export const PI_PACKAGE = "@earendil-works/pi-coding-agent";
 
 export interface PiListeners {
@@ -22,35 +20,26 @@ export interface PiListeners {
 
 export async function detectPiHarness(): Promise<{ found: boolean; version: string | null }> {
 	try {
-		const { stdout } = await execFileAsync("pi", ["--version"], {
-			timeout: 4000,
-			shell: Platform.isWin,
-		});
+		const { stdout } = await execCli("pi", ["--version"], { timeout: 4000 });
 		return { found: true, version: stdout.trim() || "installed" };
 	} catch {
-		try {
-			const cmd = Platform.isWin ? "where" : "which";
-			await execFileAsync(cmd, ["pi"], { timeout: 4000, shell: Platform.isWin });
-			return { found: true, version: "installed" };
-		} catch {
-			return { found: false, version: null };
-		}
+		return { found: false, version: null };
 	}
 }
 
 export async function installPiHarness(): Promise<{ found: boolean; version: string | null }> {
-	await execFileAsync("npm", ["install", "--global", "--ignore-scripts", PI_PACKAGE], {
-		timeout: 120000,
-		shell: Platform.isWin,
-	});
-	return detectPiHarness();
+	await execNpm(["install", "--global", "--ignore-scripts", PI_PACKAGE], { timeout: 120000 });
+	await rememberGlobalNpmBin("pi");
+	const detected = await detectPiHarness();
+	if (!detected.found) {
+		throw new Error("Install Node.js, then retry. Pi was installed but the pi command is still not available.");
+	}
+	return detected;
 }
 
 export async function uninstallPiHarness(): Promise<void> {
-	await execFileAsync("npm", ["uninstall", "--global", "--ignore-scripts", PI_PACKAGE], {
-		timeout: 120000,
-		shell: Platform.isWin,
-	});
+	await execNpm(["uninstall", "--global", "--ignore-scripts", PI_PACKAGE], { timeout: 120000 });
+	forgetResolvedCli("pi");
 }
 
 export function vaultBasePath(app: App): string | null {
@@ -110,7 +99,7 @@ export class PiHost {
 
 	async ensure(app: App, config: KaiakoConfig): Promise<{ ok: boolean; detail: string }> {
 		const detected = await detectPiHarness();
-		if (!detected.found) return { ok: false, detail: "pi was not found on PATH." };
+		if (!detected.found) return { ok: false, detail: "Install Node.js, then retry. The pi command was not found." };
 		if (!config.dataFolder) return { ok: false, detail: "Choose a data folder first." };
 		if (this.pluginDir) await syncPiHarness(this.pluginDir, config.dataFolder);
 		if (this.proc && !this.proc.killed) return { ok: true, detail: "running" };
@@ -128,12 +117,10 @@ export class PiHost {
 		if (provider) args.push("--provider", provider);
 		if (model) args.push("--model", model);
 
-		this.proc = spawn("pi", args, {
+		this.proc = await spawnCli("pi", args, {
 			cwd,
 			stdio: ["pipe", "pipe", "pipe"],
-			shell: Platform.isWin,
 			env: {
-				...process.env,
 				PI_CODING_AGENT_DIR: piDir,
 				...(key ? envForApiKey(key.provider, key.key) : {}),
 			},
@@ -142,6 +129,10 @@ export class PiHost {
 		this.proc.stdout?.on("data", (chunk: Buffer) => this.onChunk(chunk.toString("utf8")));
 		this.proc.stderr?.on("data", (chunk: Buffer) => {
 			console.warn("[kaiako pi]", chunk.toString("utf8"));
+		});
+		this.proc.on("error", (err) => {
+			console.warn("[kaiako pi]", err);
+			this.proc = null;
 		});
 		this.proc.on("exit", () => {
 			this.proc = null;
@@ -242,10 +233,9 @@ export class PiHost {
 		const piDir = path.join(config.dataFolder, "pi");
 		await fs.promises.mkdir(piDir, { recursive: true });
 		try {
-			await execFileAsync("pi", ["install", "npm:pi-web-access"], {
+			await execCli("pi", ["install", "npm:pi-web-access"], {
 				timeout: 120000,
-				env: { ...process.env, PI_CODING_AGENT_DIR: piDir },
-				shell: Platform.isWin,
+				env: { PI_CODING_AGENT_DIR: piDir },
 			});
 		} catch {
 			/* optional package */

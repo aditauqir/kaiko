@@ -5,6 +5,11 @@ import { PROVIDERS, appendProviderLogo, getProvider, type ProviderId } from "./p
 import { pickDataFolder } from "./folder";
 import { detectPiHarness, installPiHarness } from "./pi";
 import { deleteSessionFiles } from "./note-writer";
+import {
+	apiKeyCheckLabel,
+	checkApiKey,
+	type ApiKeyCheckState,
+} from "./api-key-check";
 
 type TabId = "keys" | "user-info" | "sessions" | "folder" | "pi";
 
@@ -26,6 +31,11 @@ export class KaiakoSettingsModal extends Modal {
 	private piFound = false;
 	private piVersion: string | null = null;
 	private piBusy = false;
+	private closed = false;
+	private hostRefreshPending = false;
+	private keyChecks = new Map<string, ApiKeyCheckState>();
+	private keyCheckSeq = new Map<string, number>();
+	private keyCheckInFlight = new Set<string>();
 
 	constructor(app: App, plugin: KaiakoPlugin, onChange: () => void) {
 		super(app);
@@ -34,6 +44,8 @@ export class KaiakoSettingsModal extends Modal {
 	}
 
 	async onOpen(): Promise<void> {
+		this.closed = false;
+		this.hostRefreshPending = false;
 		this.modalEl.addClass("mod-settings", "kaiako-settings-modal");
 		this.titleEl.setText("Kaiako");
 		const detected = await detectPiHarness();
@@ -43,7 +55,14 @@ export class KaiakoSettingsModal extends Modal {
 	}
 
 	onClose(): void {
+		const shouldRefreshHost = this.hostRefreshPending;
+		this.closed = true;
 		this.contentEl.empty();
+		if (shouldRefreshHost) this.onChange();
+	}
+
+	private markHostRefresh(): void {
+		this.hostRefreshPending = true;
 	}
 
 	private visibleTabs() {
@@ -95,6 +114,7 @@ export class KaiakoSettingsModal extends Modal {
 			setIcon(item.createSpan({ cls: "kaiako-settings-nav-icon" }), tab.icon);
 			item.createSpan({ text: tab.label });
 			this.plugin.registerDomEvent(item, "click", () => {
+				if (tab.id === "keys" && this.tab !== "keys") this.resetKeyChecks();
 				this.tab = tab.id;
 				this.render();
 			});
@@ -155,7 +175,7 @@ export class KaiakoSettingsModal extends Modal {
 					attr: { type: "button", "aria-label": `Save ${item.label} API key` },
 				});
 				setIcon(check, "check");
-				const save = () => this.addApiKey(item.id, input.value);
+				const save = () => void this.addApiKey(item.id, input.value, action);
 				this.plugin.registerDomEvent(check, "click", save);
 				this.plugin.registerDomEvent(input, "keydown", (event) => {
 					if (event.key === "Enter") {
@@ -175,6 +195,7 @@ export class KaiakoSettingsModal extends Modal {
 		if (this.plugin.config.apiKeys.length === 0) {
 			new Setting(pane).setName("No keys in rotation").setDesc("Add a provider key above to get started.");
 		}
+		this.queueSavedKeyChecks();
 
 		new Setting(pane).setName("Usage limits").setHeading();
 		new Setting(pane)
@@ -215,7 +236,7 @@ export class KaiakoSettingsModal extends Modal {
 				btn.setButtonText("Restart onboarding");
 				btn.onClick(() => {
 					new RestartOnboardingModal(this.app, this.plugin, () => {
-						this.onChange();
+						this.markHostRefresh();
 						this.close();
 					}).open();
 				});
@@ -224,62 +245,157 @@ export class KaiakoSettingsModal extends Modal {
 
 	private renderApiKeyEntry(pane: HTMLElement, entry: ApiKeyEntry): void {
 		const active = this.plugin.config.activeModelId === entry.id;
-		new Setting(pane)
+		const state = this.keyChecks.get(entry.id) ?? { status: "checking" as const };
+		if (!this.keyChecks.has(entry.id)) this.keyChecks.set(entry.id, state);
+		const setting = new Setting(pane)
 			.setName(entry.label)
-			.setDesc(`${masked(entry.key)} · ${getProvider(entry.provider)?.model ?? entry.provider}`)
-			.addButton((btn) => {
-				btn.setButtonText(active ? "In use" : "Use").setDisabled(active);
-				btn.onClick(() => {
-					void this.plugin.saveConfig({
-						activeModelId: entry.id,
-						provider: entry.provider,
-						apiKey: entry.key,
-					}).then(() => {
-						this.onChange();
-						this.render();
-					});
-				});
-			})
-			.addButton((btn) => {
-				btn.setButtonText("Remove");
-				btn.onClick(() => {
-					const apiKeys = this.plugin.config.apiKeys.filter((item) => item.id !== entry.id);
-					const removingActive = this.plugin.config.activeModelId === entry.id;
-					const nextActiveModelId = removingActive
-						? (apiKeys[0]?.id ?? null)
-						: this.plugin.config.activeModelId;
-					const nextActive = apiKeys.find((item) => item.id === nextActiveModelId) ?? apiKeys[0] ?? null;
-					const removingLegacyKey = this.plugin.config.apiKey === entry.key;
-					void this.plugin.saveConfig({
-						apiKeys,
-						activeModelId: nextActiveModelId,
-						provider: removingActive || removingLegacyKey ? (nextActive?.provider ?? null) : this.plugin.config.provider,
-						apiKey: removingActive || removingLegacyKey ? (nextActive?.key ?? "") : this.plugin.config.apiKey,
-					}).then(() => {
-						this.onChange();
-						this.render();
-					});
+			.setDesc(`${masked(entry.key)} · ${getProvider(entry.provider)?.model ?? entry.provider}`);
+		const chip = setting.controlEl.createSpan({
+			cls: "kaiako-key-check-chip",
+			attr: { "data-kaiako-key-check": entry.id },
+		});
+		this.paintKeyCheckChip(chip, state);
+		setting.addExtraButton((btn) => {
+			btn.setIcon("refresh-cw");
+			btn.setTooltip("Recheck API key");
+			btn.extraSettingsEl.addClass("kaiako-key-check-refresh");
+			btn.extraSettingsEl.setAttr("data-kaiako-key-refresh", entry.id);
+			btn.setDisabled(state.status === "checking");
+			btn.onClick(() => {
+				if (this.keyChecks.get(entry.id)?.status === "checking") return;
+				this.startKeyCheck(entry, true);
+			});
+		});
+		setting.addButton((btn) => {
+			btn.setButtonText(active ? "In use" : "Use").setDisabled(active);
+			btn.onClick(() => {
+				void this.plugin.saveConfig({
+					activeModelId: entry.id,
+					provider: entry.provider,
+					apiKey: entry.key,
+				}).then(() => {
+					this.markHostRefresh();
+					this.render();
 				});
 			});
+		});
+		setting.addButton((btn) => {
+			btn.setButtonText("Remove");
+			btn.onClick(() => {
+				const apiKeys = this.plugin.config.apiKeys.filter((item) => item.id !== entry.id);
+				const removingActive = this.plugin.config.activeModelId === entry.id;
+				const nextActiveModelId = removingActive
+					? (apiKeys[0]?.id ?? null)
+					: this.plugin.config.activeModelId;
+				const nextActive = apiKeys.find((item) => item.id === nextActiveModelId) ?? apiKeys[0] ?? null;
+				const removingLegacyKey = this.plugin.config.apiKey === entry.key;
+				this.keyChecks.delete(entry.id);
+				this.keyCheckSeq.delete(entry.id);
+				this.keyCheckInFlight.delete(entry.id);
+				void this.plugin.saveConfig({
+					apiKeys,
+					activeModelId: nextActiveModelId,
+					provider: removingActive || removingLegacyKey ? (nextActive?.provider ?? null) : this.plugin.config.provider,
+					apiKey: removingActive || removingLegacyKey ? (nextActive?.key ?? "") : this.plugin.config.apiKey,
+				}).then(() => {
+					this.markHostRefresh();
+					this.render();
+				});
+			});
+		});
 	}
 
-	private addApiKey(provider: ProviderId, rawKey: string): void {
+	private async addApiKey(provider: ProviderId, rawKey: string, action: HTMLElement): Promise<void> {
 		const key = rawKey.trim();
 		if (!key) {
 			new Notice("Paste a key first.");
 			return;
 		}
+		const input = action.querySelector(".kaiako-settings-provider-key");
+		const check = action.querySelector(".kaiako-settings-provider-check");
+		if (input instanceof HTMLInputElement) input.disabled = true;
+		if (check instanceof HTMLButtonElement) check.disabled = true;
+		const existingChip = action.querySelector(".kaiako-key-check-chip");
+		const chip =
+			existingChip instanceof HTMLElement
+				? existingChip
+				: action.createSpan({ cls: "kaiako-key-check-chip" });
+		this.paintKeyCheckChip(chip, { status: "checking" });
+
+		const result = await checkApiKey(provider, key);
+		if (this.closed) return;
+
 		const label = getProvider(provider)?.label ?? provider;
 		const entry: ApiKeyEntry = { id: newId(), provider, key, label };
-		void this.plugin.saveConfig({
+		this.keyChecks.set(entry.id, result);
+		await this.plugin.saveConfig({
 			apiKeys: [...this.plugin.config.apiKeys, entry],
 			provider: this.plugin.config.provider ?? provider,
 			apiKey: this.plugin.config.apiKey || key,
 			activeModelId: this.plugin.config.activeModelId ?? entry.id,
-		}).then(() => {
-			this.onChange();
-			this.render();
 		});
+		this.markHostRefresh();
+		this.render();
+	}
+
+	private resetKeyChecks(): void {
+		this.keyChecks.clear();
+		this.keyCheckSeq.clear();
+		this.keyCheckInFlight.clear();
+	}
+
+	private queueSavedKeyChecks(): void {
+		for (const entry of this.plugin.config.apiKeys) {
+			if (!this.keyChecks.has(entry.id) || this.keyChecks.get(entry.id)?.status === "checking") {
+				if (!this.keyChecks.has(entry.id)) this.keyChecks.set(entry.id, { status: "checking" });
+				this.startKeyCheck(entry);
+			}
+		}
+	}
+
+	private startKeyCheck(entry: ApiKeyEntry, force = false): void {
+		if (!force && this.keyCheckInFlight.has(entry.id)) return;
+		if (!force && this.keyChecks.get(entry.id)?.status && this.keyChecks.get(entry.id)?.status !== "checking") {
+			return;
+		}
+		const seq = (this.keyCheckSeq.get(entry.id) ?? 0) + 1;
+		this.keyCheckSeq.set(entry.id, seq);
+		this.keyCheckInFlight.add(entry.id);
+		this.keyChecks.set(entry.id, { status: "checking" });
+		this.paintSavedKeyCheck(entry.id);
+
+		void checkApiKey(entry.provider, entry.key)
+			.then((result) => {
+				if (this.keyCheckSeq.get(entry.id) !== seq) return;
+				this.keyCheckInFlight.delete(entry.id);
+				this.keyChecks.set(entry.id, result);
+				if (!this.closed) this.paintSavedKeyCheck(entry.id);
+			})
+			.catch(() => {
+				if (this.keyCheckSeq.get(entry.id) !== seq) return;
+				this.keyCheckInFlight.delete(entry.id);
+				this.keyChecks.set(entry.id, { status: "invalid", reason: "network" });
+				if (!this.closed) this.paintSavedKeyCheck(entry.id);
+			});
+	}
+
+	private paintSavedKeyCheck(id: string): void {
+		const state = this.keyChecks.get(id);
+		if (!state) return;
+		const chip = this.contentEl.querySelector(`[data-kaiako-key-check="${id}"]`);
+		if (chip instanceof HTMLElement) this.paintKeyCheckChip(chip, state);
+		const refresh = this.contentEl.querySelector(`[data-kaiako-key-refresh="${id}"]`);
+		if (refresh instanceof HTMLElement) {
+			const checking = state.status === "checking";
+			refresh.toggleClass("is-disabled", checking);
+			refresh.setAttr("aria-disabled", String(checking));
+		}
+	}
+
+	private paintKeyCheckChip(el: HTMLElement, state: ApiKeyCheckState): void {
+		el.className = `kaiako-key-check-chip is-${state.status}`;
+		el.setText(apiKeyCheckLabel(state));
+		el.setAttr("title", apiKeyCheckLabel(state));
 	}
 
 	private renderUserInfo(pane: HTMLElement): void {
@@ -291,7 +407,8 @@ export class KaiakoSettingsModal extends Modal {
 				text.setValue(this.plugin.config.name);
 				text.setPlaceholder("Your name");
 				text.onChange((value) => {
-					void this.plugin.saveConfig({ name: value.trim() }).then(() => this.onChange());
+					this.markHostRefresh();
+					void this.plugin.saveConfig({ name: value.trim() });
 				});
 			});
 
@@ -311,7 +428,8 @@ export class KaiakoSettingsModal extends Modal {
 					text.inputEl.setAttr("aria-invalid", String(!valid));
 					if (!valid) return;
 					const [subject, object] = value.trim().split(/\s*\/\s*/, 2);
-					void this.plugin.saveConfig({ pronounSubject: subject, pronounObject: object }).then(() => this.onChange());
+					this.markHostRefresh();
+					void this.plugin.saveConfig({ pronounSubject: subject, pronounObject: object });
 				});
 			});
 
@@ -323,7 +441,8 @@ export class KaiakoSettingsModal extends Modal {
 				text.setPlaceholder("Tell Kaiako about your goals, background, or interests...");
 				text.inputEl.addClass("kaiako-user-about");
 				text.onChange((value) => {
-					void this.plugin.saveConfig({ about: value.trim() }).then(() => this.onChange());
+					this.markHostRefresh();
+					void this.plugin.saveConfig({ about: value.trim() });
 				});
 			});
 	}
@@ -342,7 +461,7 @@ export class KaiakoSettingsModal extends Modal {
 					void (async () => {
 						await deleteSessionFiles(this.app, sessions);
 						await this.plugin.saveConfig({ sessions: [], currentSessionId: null });
-						this.onChange();
+						this.markHostRefresh();
 						this.render();
 					})();
 				});
@@ -360,7 +479,7 @@ export class KaiakoSettingsModal extends Modal {
 					btn.setButtonText("Open");
 					btn.onClick(() => {
 						void this.plugin.saveConfig({ currentSessionId: session.id }).then(() => {
-							this.onChange();
+							this.markHostRefresh();
 							this.close();
 						});
 					});
@@ -380,7 +499,7 @@ export class KaiakoSettingsModal extends Modal {
 						const next = await pickDataFolder();
 						if (!next) return;
 						await this.plugin.moveDataFolder(next);
-						this.onChange();
+						this.markHostRefresh();
 						this.render();
 					})();
 				});
@@ -435,7 +554,7 @@ export class KaiakoSettingsModal extends Modal {
 				toggle.setValue(this.plugin.config.autoStartPi);
 				toggle.setDisabled(!this.piFound);
 				toggle.onChange((value) => {
-					void this.plugin.saveConfig({ autoStartPi: value }).then(() => this.onChange());
+					void this.plugin.saveConfig({ autoStartPi: value }).then(() => this.markHostRefresh());
 				});
 			});
 		new Setting(pane)
@@ -445,7 +564,7 @@ export class KaiakoSettingsModal extends Modal {
 				toggle.setValue(this.plugin.config.netSearch);
 				toggle.setDisabled(!this.piFound);
 				toggle.onChange((value) => {
-					void this.plugin.saveConfig({ netSearch: value }).then(() => this.onChange());
+					void this.plugin.saveConfig({ netSearch: value }).then(() => this.markHostRefresh());
 				});
 			});
 		new Setting(pane)

@@ -1,10 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { execFile } from "child_process";
-import { promisify } from "util";
-import { Platform } from "obsidian";
-
-const execFileAsync = promisify(execFile);
+import { execNpm } from "./cli-path";
 
 const SKILL_FOLDERS = ["teach", "visualize", "harness"] as const;
 
@@ -131,10 +127,9 @@ export async function syncPiHarness(pluginDir: string, dataFolder: string): Prom
 async function npmInstallOptional(dir: string): Promise<void> {
 	if (fs.existsSync(path.join(dir, "node_modules"))) return;
 	try {
-		await execFileAsync("npm", ["install", "--omit=dev"], {
+		await execNpm(["install", "--omit=dev"], {
 			cwd: dir,
 			timeout: 120000,
-			shell: Platform.isWin,
 		});
 	} catch {
 		/* optional; mermaid/svg tools work after a manual install */
