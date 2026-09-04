@@ -1,7 +1,7 @@
 {
-	"name": "demo-sidechat",
-	"version": "0.1.0",
-	"description": "Demo Obsidian side chat with send and upload",
+	"name": "kaiako",
+	"version": "0.2.0",
+	"description": "Kaiako — A Zirn labs project. An useful Obsidian assistant to help you learn.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {

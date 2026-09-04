@@ -1,0 +1,9 @@
+{
+	"id": "kaiako",
+	"name": "Kaiako",
+	"version": "0.2.0",
+	"minAppVersion": "1.8.0",
+	"description": "An useful obsidian assistant to help you learn. A Zirn labs project.",
+	"author": "Zirn labs",
+	"isDesktopOnly": false
+}

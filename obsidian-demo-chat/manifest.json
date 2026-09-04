@@ -1,9 +1,0 @@
-{
-	"id": "demo-sidechat",
-	"name": "Demo Sidechat",
-	"version": "0.1.0",
-	"minAppVersion": "1.8.0",
-	"description": "Demo side chat with send and upload. Both write into the open markdown note and the chat pane.",
-	"author": "demo",
-	"isDesktopOnly": false
-}

@@ -1,39 +1,40 @@
-# learn
+# Kaiako — A Zirn labs project
 
-[![video](assets/thumbnail.png)](https://www.youtube.com/watch?v=kzcI5F4tGiU)
+An useful Obsidian assistant to help you learn.
 
-My AI learning system from this video: [How I Use AI to Learn Things](https://www.youtube.com/watch?v=kzcI5F4tGiU).
+## Font
 
-This is a personal system I built for myself, shared as-is. Built as a pi configuration: the teaching philosophy encoded in a skill, a few small extensions, and agent definitions.
+- **LTSuperiorSerif-Regular.otf** (bundled in `kaiako/assets/fonts/`)
 
-## What's in it
+## Plugin
 
-- `skills/teach/` — the philosophy and the process
-- `skills/visualize/` — adds a correct, minimal diagram to a lesson when an idea is clearer as a picture
-- `extensions/ask-user-question/` — the agent asks you questions through a UI popup
-- `extensions/quiz/` — graded questions with instant feedback (✓/✗, correct answer, explanation)
-- `extensions/md-log/` — link a markdown file to the session
-- `extensions/visual-tools/` — tools for visualization subagents
-- `agents/` — `researcher`, `svg-maker`, `mermaid-maker`: the subagents the system delegates to
-
-## Install
-
-This repo **is** a `.pi` directory. From your learning project's root:
+Obsidian sidebar plugin in `kaiako/`.
 
 ```bash
-git clone https://github.com/amosblomqvist/learn .pi
+cd kaiako
+npm install
+npm run build
 ```
 
-Then open pi in that directory. (Or copy the pieces you want into your existing project config.)
+Symlink `manifest.json`, `main.js`, and `styles.css` into your vault’s `.obsidian/plugins/kaiako/`, then enable **Kaiako** under Community plugins.
 
-## Requirements
+## Onboarding (local only)
 
-- [pi](https://github.com/earendil-works/pi)
-- A subagent implementation, so the system can spawn the researcher and the visual makers. Recommended: [pi-interactive-subagents](https://github.com/amosblomqvist/pi-interactive-subagents) (tmux only). With it, everything works out of the box. Any other implementation works too, but expect to adapt the agent definitions, e.g. `agents/researcher.md` lists `safe_bash` in its tools, which is specific to that extension.
-- `ask-user-question` — use the copy bundled here. If your setup already has an `ask-user-question` extension, use **this** one in its place. Popups from different extensions serialize through a shared UI lock, which only works when it's the same implementation.
+1. Choose an API provider and paste a key (presence check only for now).
+2. Hello _____ + pronouns _____/_____
+3. Data folder, pi harness status / auto-start toggle, Save
+4. Chat shell (Send / model / cost UI is present; inference is not wired yet)
 
-## Notes
+Config is stored in the plugin’s local data so onboarding does not repeat.
 
-You can run the system without subagents. The main session does the teaching. You just lose the researcher (truth verification) and the generated visuals.
+## Providers
 
-The teaching skill is written for one learner (me). Edit the skill to fit how you learn best.
+Claude · OpenAI · Gemini · Qwen Cloud (Alibaba Cloud Model Studio / DashScope) · DeepSeek · OpenRouter
+
+## LaTeX
+
+Obsidian renders MathJax natively in notes (`$inline$` and `$$` blocks). Kaiako chat bubbles use `MarkdownRenderer`, so the same LaTeX syntax renders in the sidebar. Prefer block math with `$$` on their own lines for reliable Reading view.
+
+## Branch
+
+Active implementation: `feature`
