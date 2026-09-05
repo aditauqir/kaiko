@@ -15,15 +15,21 @@
  * (Weiss, 1982, Applied Psychological Measurement; Choi, Grady & Dodd, 2010).
  *
  * knowledge_score is 0–100 *points* on a linear map of θ (not percent correct).
- * Teaching starts 25 of those points below the estimated score.
+ * Teaching starts below the estimated score according to the Base Jump setting.
  */
+
+import type { BaseJumpLevel } from "./config";
 
 export const MAX_DIAGNOSTIC_ITEMS = 10;
 export const MIN_ITEMS_SE_STOP = 4;
 export const SE_STOP = 0.5;
 export const MIN_ITEMS_FLOOR_STOP = 3;
 export const FLOOR_THETA = -1.2;
-export const TEACHING_OFFSET_POINTS = 25;
+export const BASE_JUMP_OFFSET_POINTS: Record<BaseJumpLevel, number> = {
+	low: 10,
+	medium: 25,
+	high: 40,
+};
 export const SCORE_CENTER = 50;
 export const SCORE_POINTS_PER_LOGIT = 20;
 
@@ -57,8 +63,12 @@ export function thetaToScore(theta: number): number {
 	return Math.max(0, Math.min(100, Math.round(SCORE_CENTER + SCORE_POINTS_PER_LOGIT * theta)));
 }
 
-export function teachingEntryFromScore(score: number): number {
-	return Math.max(0, score - TEACHING_OFFSET_POINTS);
+export function baseJumpOffsetPoints(level: BaseJumpLevel = "medium"): number {
+	return BASE_JUMP_OFFSET_POINTS[level];
+}
+
+export function teachingEntryFromScore(score: number, baseJump: BaseJumpLevel = "medium"): number {
+	return Math.max(0, score - baseJumpOffsetPoints(baseJump));
 }
 
 function raschP(theta: number, difficulty: number): number {
@@ -69,7 +79,7 @@ function raschP(theta: number, difficulty: number): number {
 }
 
 /** Newton–Raphson MAP for Rasch 1PL with N(0,1) prior. */
-export function estimateAbility(items: ScoredItem[]): KnowledgeEstimate {
+export function estimateAbility(items: ScoredItem[], baseJump: BaseJumpLevel = "medium"): KnowledgeEstimate {
 	const n = items.length;
 	const nCorrect = items.filter((item) => item.correct).length;
 	const accuracy = n === 0 ? 0 : nCorrect / n;
@@ -79,7 +89,7 @@ export function estimateAbility(items: ScoredItem[]): KnowledgeEstimate {
 			theta: 0,
 			se: 1,
 			score: SCORE_CENTER,
-			teachingEntry: teachingEntryFromScore(SCORE_CENTER),
+			teachingEntry: teachingEntryFromScore(SCORE_CENTER, baseJump),
 			accuracy: 0,
 			n: 0,
 			nCorrect: 0,
@@ -106,7 +116,7 @@ export function estimateAbility(items: ScoredItem[]): KnowledgeEstimate {
 
 	const se = 1 / Math.sqrt(Math.max(info, 1e-6));
 	const score = thetaToScore(theta);
-	const teachingEntry = teachingEntryFromScore(score);
+	const teachingEntry = teachingEntryFromScore(score, baseJump);
 	const { stop, stopReason } = diagnosticStop(n, se, theta, items);
 
 	return {
@@ -153,13 +163,14 @@ export function suggestedNextDifficulty(theta: number, last?: ScoredItem): numbe
 	return clampDifficulty(0.6 * theta + 0.4 * (last.difficulty + bump));
 }
 
-export function formatEstimate(estimate: KnowledgeEstimate): string {
+export function formatEstimate(estimate: KnowledgeEstimate, baseJump: BaseJumpLevel = "medium"): string {
 	const acc = `${estimate.nCorrect}/${estimate.n} (${Math.round(estimate.accuracy * 100)}%)`;
+	const offset = baseJumpOffsetPoints(baseJump);
 	return [
 		`knowledge_score: ${estimate.score} points (Rasch 1PL MAP)`,
 		`theta: ${estimate.theta.toFixed(3)} logits`,
 		`SE: ${estimate.se.toFixed(3)}`,
-		`teaching_entry: ${estimate.teachingEntry} points (${TEACHING_OFFSET_POINTS} below score)`,
+		`teaching_entry: ${estimate.teachingEntry} points (${offset} below score; base jump ${baseJump})`,
 		`accuracy: ${acc} (secondary; do not use as the teaching level)`,
 		`items: ${estimate.n}/${MAX_DIAGNOSTIC_ITEMS}`,
 		estimate.stop ? `STOP diagnostic: ${estimate.stopReason}` : "Continue diagnostic: ask exactly one more kaiako-mcq.",

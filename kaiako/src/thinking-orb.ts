@@ -58,7 +58,7 @@ export interface ThinkingOrbHandle {
 	destroy: () => void;
 }
 
-const SIZE = 24;
+const SIZE = 20;
 
 export function mountThinkingOrb(parent: HTMLElement): ThinkingOrbHandle {
 	const pill = parent.createDiv({
@@ -97,23 +97,23 @@ export function mountThinkingOrb(parent: HTMLElement): ThinkingOrbHandle {
 		ctx.clearRect(0, 0, SIZE, SIZE);
 		const cx = SIZE / 2;
 		const cy = SIZE / 2;
-		const r = 8.4;
+		const r = 7;
 		drawState(ctx, state, t, cx, cy, r, ink, reduced());
 	};
 
 	const loop = (now: number) => {
 		paint(now);
-		if (state && !reduced()) raf = requestAnimationFrame(loop);
+		if (state && !reduced()) raf = window.requestAnimationFrame(loop);
 	};
 
 	const startLoop = () => {
-		cancelAnimationFrame(raf);
+		window.cancelAnimationFrame(raf);
 		if (!state) return;
 		if (reduced()) {
 			paint(performance.now());
 			return;
 		}
-		raf = requestAnimationFrame(loop);
+		raf = window.requestAnimationFrame(loop);
 	};
 
 	return {
@@ -122,7 +122,7 @@ export function mountThinkingOrb(parent: HTMLElement): ThinkingOrbHandle {
 			if (!next) {
 				pill.setAttr("hidden", "true");
 				pill.removeClass("is-live");
-				cancelAnimationFrame(raf);
+				window.cancelAnimationFrame(raf);
 				return;
 			}
 			pill.removeAttribute("hidden");
@@ -134,7 +134,7 @@ export function mountThinkingOrb(parent: HTMLElement): ThinkingOrbHandle {
 			startLoop();
 		},
 		destroy: () => {
-			cancelAnimationFrame(raf);
+			window.cancelAnimationFrame(raf);
 			pill.remove();
 		},
 	};
@@ -350,8 +350,9 @@ function drawShape(
 	const sides = phase < 1 ? 16 : phase < 2 ? 3 : 4;
 	const n = 14;
 	for (let i = 0; i < n; i += 1) {
-		const a = (i / n) * Math.PI * 2 - Math.PI / 2;
-		const poly = r * (0.72 + 0.18 * Math.cos(sides * a));
-		dot(ctx, cx + Math.cos(a) * poly, cy + Math.sin(a) * poly, 0.95, ink, 0.55);
+		const a = (i / n) * Math.PI * 2 - Math.PI / 2 + t * 0.22;
+		const pulse = 0.92 + 0.08 * Math.sin(t * 1.8 + i * 0.4);
+		const poly = r * (0.72 + 0.18 * Math.cos(sides * a) + 0.04 * Math.sin(t * 1.4 + i));
+		dot(ctx, cx + Math.cos(a) * poly * pulse, cy + Math.sin(a) * poly * pulse, 0.95, ink, 0.55);
 	}
 }

@@ -6,7 +6,7 @@ import {
 	type WorkspaceLeaf,
 } from "obsidian";
 import type KaiakoPlugin from "./main";
-import type { KaiakoConfig, SessionMeta } from "./config";
+import type { BaseJumpLevel, KaiakoConfig, SessionMeta } from "./config";
 import { appendProviderLogo, getProvider, onboardingProviders } from "./providers";
 import { detectPiHarness, installPiHarness } from "./pi";
 import { pickDataFolder } from "./folder";
@@ -20,6 +20,7 @@ import {
 	replaceSessionTurns,
 	splitSessionTurns,
 	stripYouPrefix,
+	updateSessionTopic,
 	patchSessionFrontmatter,
 	type SessionTurn,
 } from "./note-writer";
@@ -29,10 +30,12 @@ import { mountApprovalCard } from "./approval-card";
 import { extractGoal, hasStoredGoal } from "./goal";
 import { buildHarnessPrompt, resolvePhase } from "./harness-prompt";
 import { estimateAbility, type ScoredItem } from "./knowledge";
-import { formatMcqRecord, splitMcq, stripMcqFences, type McqItem } from "./mcq";
+import { formatMcqPrompt, formatMcqRecord, normalizeMcqMarkdown, splitMcq, stripMcqFences, type McqItem } from "./mcq";
 import { sanitizeMathForRender } from "./math-safe";
 import { mountStreamReveal, type StreamRevealHandle } from "./streaming-text";
 import { orbStateForTool } from "./thinking-orb";
+import { extractTopic, stripTopicMarker } from "./topic";
+import { SessionActivityTracker, type SessionActivitySnapshot } from "./session-activity";
 
 export const VIEW_TYPE_KAIAKO = "kaiako-view";
 
@@ -48,15 +51,20 @@ export class KaiakoView extends ItemView {
 	private piBusy = false;
 	private archiveOpen = false;
 	private archiveEl: HTMLElement | null = null;
+	private archiveBtn: HTMLButtonElement | null = null;
 	private promptBar: PromptBarHandle | null = null;
 	private skippedProviders = false;
 	private stream: StreamRevealHandle | null = null;
 	private toolsLive = false;
 	private costEl: HTMLElement | null = null;
+	private readonly activity: SessionActivityTracker;
 
 	constructor(leaf: WorkspaceLeaf, plugin: KaiakoPlugin) {
 		super(leaf);
 		this.plugin = plugin;
+		this.activity = new SessionActivityTracker((sessionId, snapshot) =>
+			this.persistSessionActivity(sessionId, snapshot),
+		);
 	}
 
 	getViewType(): string {
@@ -75,14 +83,22 @@ export class KaiakoView extends ItemView {
 		this.rootEl = this.contentEl;
 		this.rootEl.empty();
 		this.rootEl.addClass("kaiako-root");
+		this.registerDomEvent(this.rootEl, "pointerdown", (event) => this.markSessionActivity(event));
+		this.registerDomEvent(this.rootEl, "keydown", (event) => this.markSessionActivity(event));
+		this.registerDomEvent(this.rootEl, "input", (event) => this.markSessionActivity(event));
+		this.registerDomEvent(this.rootEl, "wheel", (event) => this.markSessionActivity(event));
+		this.registerDomEvent(this.rootEl, "touchstart", (event) => this.markSessionActivity(event));
+		this.registerDomEvent(document, "pointerdown", (event) => this.dismissArchive(event));
 		this.step = this.plugin.config.onboarded ? "chat" : "provider";
 		await this.refreshPi();
 		this.render();
 	}
 
 	async onClose(): Promise<void> {
+		await this.activity.stop();
 		this.contentEl.empty();
 		this.archiveEl = null;
+		this.archiveBtn = null;
 	}
 
 	reopenOnboarding(): void {
@@ -115,12 +131,13 @@ export class KaiakoView extends ItemView {
 
 	private render(): void {
 		this.archiveEl = null;
+		this.archiveBtn = null;
 		this.rootEl.empty();
 		const shell = this.rootEl.createDiv({
 			cls: [
 				"kaiako-shell",
 				this.step === "chat" ? "kaiako-bg-chat" : "kaiako-bg-onboarding",
-				this.step === "chat" && this.cfg().lockedIn ? "kaiako-locked" : "",
+				this.step === "chat" ? "kaiako-locked" : "",
 			]
 				.filter(Boolean)
 				.join(" "),
@@ -300,7 +317,7 @@ export class KaiakoView extends ItemView {
 		setIcon(settingsBtn.createSpan({ cls: "kaiako-setup-icon" }), "settings");
 		settingsBtn.createSpan({ text: "Settings" });
 		this.registerDomEvent(settingsBtn, "click", () => {
-			this.openSettings();
+			void this.openSettings();
 		});
 
 		const folderBtn = stack.createEl("button", { cls: "kaiako-setup-btn" });
@@ -412,17 +429,17 @@ export class KaiakoView extends ItemView {
 			attr: { "aria-label": "Settings" },
 		});
 		setIcon(settingsBtn, "settings");
-		this.registerDomEvent(settingsBtn, "click", () => this.openSettings());
+		this.registerDomEvent(settingsBtn, "click", () => void this.openSettings());
 
 		const spacer = top.createDiv({ cls: "kaiako-top-spacer" });
 		void spacer;
 
-		const archiveBtn = top.createEl("button", {
+		this.archiveBtn = top.createEl("button", {
 			cls: "kaiako-icon-btn",
 			attr: { "aria-label": "Archive" },
 		});
-		setIcon(archiveBtn, "archive");
-		this.registerDomEvent(archiveBtn, "click", () => {
+		setIcon(this.archiveBtn, "archive");
+		this.registerDomEvent(this.archiveBtn, "click", () => {
 			this.toggleArchive(chat);
 		});
 
@@ -435,20 +452,15 @@ export class KaiakoView extends ItemView {
 			void this.newChat();
 		});
 
-		const lockBtn = top.createEl("button", {
-			cls: `kaiako-icon-btn${this.cfg().lockedIn ? " is-active" : ""}`,
-			attr: { "aria-label": "Lock in" },
-		});
-		setIcon(lockBtn, "coffee");
-		this.registerDomEvent(lockBtn, "click", () => {
-			void this.plugin.saveConfig({ lockedIn: !this.cfg().lockedIn }).then(() => this.render());
-		});
-
 		if (this.archiveOpen) this.archiveEl = this.renderArchive(chat);
 
 		const currentSession = this.cfg().sessions.find((item) => item.id === this.cfg().currentSessionId) ?? null;
-		const greet = currentSession?.title ?? (this.cfg().name ? `Hello ${this.cfg().name}` : "Kaiako");
+		if (currentSession) this.activity.begin(currentSession);
+		else void this.activity.stop();
+		const topicReady = currentSession?.topicGenerated === true;
+		const greet = topicReady ? currentSession?.title ?? "Kaiako" : (this.cfg().name ? `Hello ${this.cfg().name}` : "Kaiako");
 		const greetEl = chat.createEl("h2", { cls: "kaiako-chat-greet", text: greet });
+		if (currentSession && !topicReady) greetEl.addClass("kaiako-chat-greet--hidden");
 
 		const messages = chat.createDiv({ cls: "kaiako-messages" });
 		void this.fillMessages(messages, greetEl);
@@ -488,6 +500,16 @@ export class KaiakoView extends ItemView {
 		this.archiveEl = null;
 	}
 
+	private dismissArchive(event: PointerEvent): void {
+		if (!this.archiveOpen || !this.archiveEl) return;
+		const target = event.target;
+		if (!(target instanceof Node)) return;
+		if (this.archiveEl.contains(target) || this.archiveBtn?.contains(target)) return;
+		this.archiveOpen = false;
+		this.archiveEl.remove();
+		this.archiveEl = null;
+	}
+
 	private renderArchive(chat: HTMLElement): HTMLElement {
 		const pop = chat.createDiv({ cls: "kaiako-archive-pop" });
 		pop.createEl("h3", { text: "Sessions" });
@@ -502,7 +524,10 @@ export class KaiakoView extends ItemView {
 			if (session.id === this.cfg().currentSessionId) {
 				row.addClass("is-current");
 			}
-			row.createSpan({ cls: "kaiako-archive-title", text: session.title });
+			row.createSpan({
+				cls: "kaiako-archive-title",
+				text: session.topicGenerated === true ? session.title : "Generating topic…",
+			});
 			this.registerDomEvent(row, "click", () => {
 				void this.openSession(session);
 			});
@@ -510,7 +535,8 @@ export class KaiakoView extends ItemView {
 		return pop;
 	}
 
-	private openSettings(): void {
+	private async openSettings(): Promise<void> {
+		await this.activity.flush();
 		new KaiakoSettingsModal(this.app, this.plugin, () => {
 			if (!this.plugin.config.onboarded) this.reopenOnboarding();
 			else this.render();
@@ -531,27 +557,39 @@ export class KaiakoView extends ItemView {
 			});
 			return;
 		}
-		greet?.removeClass("kaiako-chat-greet--hidden");
 		if (session) session = await this.hydrateSession(session);
+		if (session) this.activity.begin(session);
+		if (session?.topicGenerated === true) greet?.removeClass("kaiako-chat-greet--hidden");
+		else greet?.addClass("kaiako-chat-greet--hidden");
 		this.promptBar?.setPhase(resolvePhase(session));
-		const turns = splitSessionTurns(body);
+		let turns = splitSessionTurns(body);
+		if (session) {
+			const normalizedTurns = turns.map((turn) =>
+				turn.role === "assistant" ? { ...turn, markdown: normalizeMcqMarkdown(turn.markdown) } : turn,
+			);
+			if (normalizedTurns.some((turn, index) => turn.markdown !== turns[index]?.markdown)) {
+				await replaceSessionTurns(this.app, session, normalizedTurns);
+				turns = normalizedTurns;
+			}
+		}
 		const liked = new Set(session?.likedTurns ?? []);
 		for (let index = 0; index < turns.length; index += 1) {
 			const turn = turns[index];
 			if (!turn) continue;
+			const visibleMarkdown = stripTopicMarker(stripMcqFences(turn.markdown));
+			if (!visibleMarkdown.trim()) continue;
 			this.separateMessage(messages);
 			const wrap = messages.createDiv({ cls: `kaiako-turn kaiako-turn--${turn.role}` });
 			const article = wrap.createDiv({ cls: "kaiako-md" });
 			await MarkdownRenderer.render(
 				this.app,
-				sanitizeMathForRender(stripMcqFences(turn.markdown)),
+				sanitizeMathForRender(visibleMarkdown),
 				article,
 				session?.filePath ?? "",
 				this,
 			);
 			this.mountTurnActions(wrap, messages, session, turns, index, liked.has(index), greet);
 		}
-		this.mountScoreChip(messages, session);
 	}
 
 	private mountTurnActions(
@@ -586,7 +624,7 @@ export class KaiakoView extends ItemView {
 	}
 
 	private async copyTurn(turn: SessionTurn): Promise<void> {
-		const text = stripYouPrefix(stripMcqFences(turn.markdown));
+		const text = stripYouPrefix(stripTopicMarker(stripMcqFences(turn.markdown)));
 		try {
 			await navigator.clipboard.writeText(text);
 			new Notice("Copied");
@@ -653,7 +691,7 @@ export class KaiakoView extends ItemView {
 		await this.saveSession(session);
 		await this.fillMessages(messages, greet);
 
-		const started = await this.plugin.pi.ensure(this.app, this.cfg());
+		const started = await this.plugin.pi.ensure(this.app, this.cfg(), session.id);
 		if (!started.ok) {
 			new Notice(started.detail);
 			return;
@@ -667,27 +705,13 @@ export class KaiakoView extends ItemView {
 		messages.createEl("hr", { cls: "kaiako-msg-rule", attr: { "aria-hidden": "true" } });
 	}
 
-	private mountScoreChip(messages: HTMLElement, session: SessionMeta | null): void {
-		if (session?.knowledgeScore == null) return;
-		const chip = messages.createDiv({ cls: "kaiako-score-chip" });
-		chip.createSpan({
-			text: `Knowledge score · ${session.knowledgeScore} points`,
-		});
-		if (session.teachingEntry != null) {
-			chip.createSpan({
-				cls: "kaiako-score-chip-sub",
-				text: ` · teach from ${session.teachingEntry}`,
-			});
-		}
-	}
-
 	private async handleSend(messages: HTMLElement, text: string, greet?: HTMLElement): Promise<void> {
 		this.stream?.cancel();
 		this.stream = null;
 
 		let session = this.cfg().sessions.find((item) => item.id === this.cfg().currentSessionId) ?? null;
 		if (!session) {
-			session = await createSessionNote(this.app, text.slice(0, 48) || "Starting a topic");
+			session = await createSessionNote(this.app, "New topic");
 			await this.saveSession(session);
 			greet?.setText(session.title);
 		} else {
@@ -706,7 +730,7 @@ export class KaiakoView extends ItemView {
 		await appendToSession(this.app, session, `**You:** ${text}`);
 		await this.fillMessages(messages, greet);
 
-		const started = await this.plugin.pi.ensure(this.app, this.cfg());
+		const started = await this.plugin.pi.ensure(this.app, this.cfg(), session.id);
 		if (!started.ok) {
 			new Notice(started.detail);
 			return;
@@ -720,11 +744,16 @@ export class KaiakoView extends ItemView {
 		session: SessionMeta,
 		learnerText: string,
 		greet?: HTMLElement,
-		opts?: { estimate?: ReturnType<typeof estimateAbility> | null; lastItem?: ScoredItem; mcqAnswer?: string },
+		opts?: {
+			estimate?: ReturnType<typeof estimateAbility> | null;
+			lastItem?: ScoredItem;
+			mcqAnswer?: string;
+			baseJump?: BaseJumpLevel;
+		},
 	): Promise<void> {
 		this.separateMessage(messages);
 		const live = messages.createDiv({ cls: "kaiako-bubble kaiako-bubble--ai kaiako-stream" });
-		const stream = mountStreamReveal(live, { transform: stripMcqFences });
+		const stream = mountStreamReveal(live, { transform: (raw) => stripTopicMarker(stripMcqFences(raw)) });
 		this.stream = stream;
 		this.toolsLive = false;
 		this.promptBar?.setOrb("breathing");
@@ -749,6 +778,7 @@ export class KaiakoView extends ItemView {
 				void this.finishAssistantTurn(messages, session, stream, full, greet, usage);
 			},
 			onError: (message) => {
+				this.activity.setPiBusy(session.id, false);
 				if (this.stream === stream) {
 					stream.cancel();
 					this.stream = null;
@@ -760,8 +790,14 @@ export class KaiakoView extends ItemView {
 			},
 		});
 
+		const resumeContext = buildResumeContext(await readSessionBody(this.app, session), learnerText);
+		this.activity.setPiBusy(session.id, true);
 		this.plugin.pi.prompt(
-			promptWithUserContext(this.cfg(), buildHarnessPrompt(session, learnerText, opts)),
+			promptWithUserContext(this.cfg(), buildHarnessPrompt(session, learnerText, {
+				...opts,
+				baseJump: opts?.baseJump ?? this.cfg().baseJump,
+				resumeContext,
+			})),
 		);
 	}
 
@@ -773,9 +809,10 @@ export class KaiakoView extends ItemView {
 		greet?: HTMLElement,
 		usage?: { cost?: number },
 	): Promise<void> {
+		this.activity.setPiBusy(session.id, false);
 		// Pi providers can emit deltas or only the completed response. Sync the
 		// final text into the same reveal instance so both paths animate identically.
-		stream.setText(stripMcqFences(full));
+		stream.setText(stripTopicMarker(stripMcqFences(full)));
 		await stream.finish();
 		if (this.stream === stream) this.stream = null;
 		if (usage?.cost != null && this.costEl) {
@@ -785,7 +822,16 @@ export class KaiakoView extends ItemView {
 		session = await this.hydrateSession(session);
 		const phase = resolvePhase(session);
 		const { prose, mcq } = splitMcq(full);
-		const toWrite = (prose || full).trim();
+		const topic = extractTopic(full);
+		if (topic && session.topicGenerated !== true) {
+			await updateSessionTopic(this.app, session, topic);
+			session = { ...session, title: topic, topicGenerated: true };
+			await patchSessionFrontmatter(this.app, session, { kaiako_topic_generated: true });
+			await this.saveSession(session);
+			greet?.setText(topic);
+			greet?.removeClass("kaiako-chat-greet--hidden");
+		}
+		const toWrite = stripTopicMarker((mcq ? prose : full).trim());
 
 		if (mcq && phase === "need_goal") {
 			if (toWrite) await appendToSession(this.app, session, toWrite);
@@ -802,6 +848,7 @@ export class KaiakoView extends ItemView {
 
 		if (mcq && phase !== "need_goal") {
 			if (toWrite) await appendToSession(this.app, session, toWrite);
+			await appendToSession(this.app, session, formatMcqPrompt(mcq));
 			await this.fillMessages(messages, greet);
 			this.mountMcq(messages, session, mcq, greet, phase === "diagnostic");
 			this.promptBar?.setInternetActive(false);
@@ -859,7 +906,7 @@ export class KaiakoView extends ItemView {
 		};
 		if (scoreIt) {
 			const items = [...(session.diagnosticItems ?? []), record];
-			const estimate = estimateAbility(items);
+			const estimate = estimateAbility(items, this.cfg().baseJump);
 			const nextPhase = estimate.stop ? "teaching" : "diagnostic";
 			session = await persistHarnessState(this.app, session, {
 				phase: nextPhase,
@@ -903,13 +950,40 @@ export class KaiakoView extends ItemView {
 			createdAt: session.createdAt,
 		};
 		if (
+			merged.topicGenerated !== session.topicGenerated ||
 			merged.goal !== session.goal ||
 			merged.phase !== session.phase ||
-			merged.knowledgeScore !== session.knowledgeScore
+			merged.knowledgeScore !== session.knowledgeScore ||
+			merged.activeSeconds !== session.activeSeconds ||
+			merged.lastInteractionAt !== session.lastInteractionAt
 		) {
 			await this.saveSession(merged);
 		}
 		return merged;
+	}
+
+	private markSessionActivity(event?: Event): void {
+		const target = event?.target;
+		if (target instanceof Element && target.closest(".kaiako-chat-top, .kaiako-archive-pop")) return;
+		const sessionId = this.cfg().currentSessionId;
+		if (sessionId) this.activity.markUserInteraction(sessionId);
+	}
+
+	private async persistSessionActivity(sessionId: string, snapshot: SessionActivitySnapshot): Promise<void> {
+		const session = this.cfg().sessions.find((item) => item.id === sessionId);
+		if (!session) return;
+		const activeSeconds = Math.max(0, Math.floor(snapshot.activeSeconds));
+		await patchSessionFrontmatter(this.app, session, {
+			kaiako_active_seconds: activeSeconds,
+			kaiako_last_interaction_at: snapshot.lastInteractionAt,
+		});
+		const next: SessionMeta = {
+			...session,
+			activeSeconds,
+			lastInteractionAt: snapshot.lastInteractionAt ?? undefined,
+		};
+		const sessions = [next, ...this.cfg().sessions.filter((item) => item.id !== sessionId)];
+		await this.plugin.saveConfig({ sessions });
 	}
 
 	private async saveSession(session: SessionMeta): Promise<void> {
@@ -953,6 +1027,24 @@ function promptWithUserContext(config: KaiakoConfig, text: string): string {
 		"Learner request:",
 		text,
 	].join("\n");
+}
+
+function buildResumeContext(body: string, currentLearnerText: string): string {
+	const current = currentLearnerText.trim();
+	const turns = splitSessionTurns(body);
+	const entries = turns
+		.filter((turn, index) => {
+			const isCurrentUserTurn =
+				index === turns.length - 1 && turn.role === "user" && stripYouPrefix(turn.markdown) === current;
+			return !isCurrentUserTurn;
+		})
+		.map((turn) => {
+			const role = turn.role === "user" ? "Learner" : "Kaiako";
+			const content = stripTopicMarker(turn.markdown).trim();
+			return content ? `${role}: ${content}` : "";
+		})
+		.filter(Boolean);
+	return entries.slice(-12).join("\n\n").slice(-12000);
 }
 
 function sleep(ms: number): Promise<void> {

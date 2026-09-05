@@ -9,8 +9,6 @@ export interface ApprovalCardOptions {
 	onSubmit: (chosen: string, dontKnow: boolean) => void;
 }
 
-const AUTO_ADVANCE_MS = 480;
-
 /** Native Obsidian equivalent of the supplied ApprovalCard, scoped to one MCQ. */
 export function mountApprovalCard(parent: HTMLElement, item: McqItem, options: ApprovalCardOptions): HTMLElement {
 	const root = parent.createDiv({ cls: "kaiako-mcq-root" });
@@ -19,27 +17,19 @@ export function mountApprovalCard(parent: HTMLElement, item: McqItem, options: A
 		text: "Open question",
 		attr: { type: "button", hidden: "true" },
 	});
-	let advanceTimer = 0;
 	let selected = "";
 	let custom = "";
 	let locked = false;
-
-	const clearAdvance = () => {
-		if (advanceTimer) window.clearTimeout(advanceTimer);
-		advanceTimer = 0;
-	};
 
 	const submit = (chosen: string, dontKnow: boolean) => {
 		if (locked) return;
 		const answer = chosen.trim();
 		if (!dontKnow && !answer) return;
-		clearAdvance();
 		locked = true;
 		options.onSubmit(answer, dontKnow);
 	};
 
 	const buildCard = () => {
-		clearAdvance();
 		selected = "";
 		custom = "";
 		locked = false;
@@ -84,7 +74,9 @@ export function mountApprovalCard(parent: HTMLElement, item: McqItem, options: A
 			});
 			const indicator = btn.createSpan({ cls: "kaiako-mcq-indicator kaiako-mcq-radio" });
 			indicator.createSpan({ cls: "kaiako-mcq-dot" });
-			const body = btn.createSpan({ cls: "kaiako-mcq-text" });
+			// MarkdownRenderer creates block elements such as <p>; keep them inside
+			// a block container so wrapped options cannot collapse into each other.
+			const body = btn.createDiv({ cls: "kaiako-mcq-text" });
 			void MarkdownRenderer.render(
 				options.app,
 				sanitizeMathForRender(option.text),
@@ -99,8 +91,7 @@ export function mountApprovalCard(parent: HTMLElement, item: McqItem, options: A
 				custom = "";
 				if (customInput) customInput.value = "";
 				sync();
-				clearAdvance();
-				advanceTimer = window.setTimeout(() => submit(option.id, false), AUTO_ADVANCE_MS);
+				submit(option.id, false);
 			});
 		}
 
@@ -114,7 +105,6 @@ export function mountApprovalCard(parent: HTMLElement, item: McqItem, options: A
 			if (locked || !customInput) return;
 			custom = customInput.value;
 			selected = "";
-			clearAdvance();
 			sync();
 		});
 		options.component.registerDomEvent(customInput, "keydown", (event) => {
@@ -153,7 +143,6 @@ export function mountApprovalCard(parent: HTMLElement, item: McqItem, options: A
 		sync();
 
 		options.component.registerDomEvent(dismiss, "click", () => {
-			clearAdvance();
 			card.remove();
 			reopen.hidden = false;
 		});

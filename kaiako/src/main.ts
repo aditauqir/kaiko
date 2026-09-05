@@ -66,6 +66,7 @@ export default class KaiakoPlugin extends Plugin {
 			requestLimit: null,
 			autoStartPi: false,
 			netSearch: false,
+			baseJump: "medium",
 			lockedIn: false,
 			sessions: [],
 			currentSessionId: null,

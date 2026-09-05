@@ -58,12 +58,14 @@ export class PiHost {
 	private installing = false;
 	private pluginDir = "";
 	private turnClosed = false;
+	private activeSessionId: string | null = null;
 
 	stop(): void {
-		if (!this.proc) return;
-		this.proc.kill();
+		const proc = this.proc;
 		this.proc = null;
+		this.activeSessionId = null;
 		this.buf = "";
+		proc?.kill();
 	}
 
 	setPluginDir(dir: string): void {
@@ -91,18 +93,21 @@ export class PiHost {
 		await writeNetSearchConfig(config);
 		if (config.netSearch) void this.ensureWebAccess(config);
 		if (config.autoStartPi) {
-			await this.ensure(app, config);
+			await this.ensure(app, config, config.currentSessionId ?? undefined);
 		} else {
 			this.stop();
 		}
 	}
 
-	async ensure(app: App, config: KaiakoConfig): Promise<{ ok: boolean; detail: string }> {
+	async ensure(app: App, config: KaiakoConfig, sessionId?: string): Promise<{ ok: boolean; detail: string }> {
 		const detected = await detectPiHarness();
 		if (!detected.found) return { ok: false, detail: "Install Node.js, then retry. The pi command was not found." };
 		if (!config.dataFolder) return { ok: false, detail: "Choose a data folder first." };
 		if (this.pluginDir) await syncPiHarness(this.pluginDir, config.dataFolder);
-		if (this.proc && !this.proc.killed) return { ok: true, detail: "running" };
+		if (this.proc && !this.proc.killed && this.activeSessionId === (sessionId ?? null)) {
+			return { ok: true, detail: "running" };
+		}
+		if (this.proc) this.stop();
 
 		const cwd = vaultBasePath(app) ?? config.dataFolder;
 		const piDir = path.join(config.dataFolder, "pi");
@@ -114,10 +119,11 @@ export class PiHost {
 		const provider = key ? piProviderFlag(key.provider) : undefined;
 		const model = key ? getProvider(key.provider)?.model : undefined;
 		const args = ["--mode", "rpc", "--session-dir", sessionDir];
+		if (sessionId) args.push("--session-id", sessionId);
 		if (provider) args.push("--provider", provider);
 		if (model) args.push("--model", model);
 
-		this.proc = await spawnCli("pi", args, {
+		const proc = await spawnCli("pi", args, {
 			cwd,
 			stdio: ["pipe", "pipe", "pipe"],
 			env: {
@@ -125,17 +131,25 @@ export class PiHost {
 				...(key ? envForApiKey(key.provider, key.key) : {}),
 			},
 		});
+		this.proc = proc;
+		this.activeSessionId = sessionId ?? null;
 		this.buf = "";
-		this.proc.stdout?.on("data", (chunk: Buffer) => this.onChunk(chunk.toString("utf8")));
-		this.proc.stderr?.on("data", (chunk: Buffer) => {
+		proc.stdout?.on("data", (chunk: Buffer) => this.onChunk(chunk.toString("utf8")));
+		proc.stderr?.on("data", (chunk: Buffer) => {
 			console.warn("[kaiako pi]", chunk.toString("utf8"));
 		});
-		this.proc.on("error", (err) => {
+		proc.on("error", (err) => {
 			console.warn("[kaiako pi]", err);
-			this.proc = null;
+			if (this.proc === proc) {
+				this.proc = null;
+				this.activeSessionId = null;
+			}
 		});
-		this.proc.on("exit", () => {
-			this.proc = null;
+		proc.on("exit", () => {
+			if (this.proc === proc) {
+				this.proc = null;
+				this.activeSessionId = null;
+			}
 		});
 		return { ok: true, detail: `rpc in ${cwd}` };
 	}

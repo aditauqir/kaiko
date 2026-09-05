@@ -1,6 +1,9 @@
 import { getProvider, type ProviderId } from "./providers";
 
 export type SessionPhase = "need_goal" | "diagnostic" | "teaching";
+export type BaseJumpLevel = "low" | "medium" | "high";
+
+export const BASE_JUMP_LEVELS: BaseJumpLevel[] = ["low", "medium", "high"];
 
 export interface DiagnosticItemRecord {
 	id: string;
@@ -14,6 +17,7 @@ export interface DiagnosticItemRecord {
 export interface SessionMeta {
 	id: string;
 	title: string;
+	topicGenerated?: boolean;
 	filePath: string;
 	createdAt: number;
 	goal?: string;
@@ -25,6 +29,8 @@ export interface SessionMeta {
 	accuracy?: number;
 	diagnosticItems?: DiagnosticItemRecord[];
 	likedTurns?: number[];
+	activeSeconds?: number;
+	lastInteractionAt?: number;
 }
 
 export interface ApiKeyEntry {
@@ -49,6 +55,7 @@ export interface KaiakoConfig {
 	requestLimit: number | null;
 	autoStartPi: boolean;
 	netSearch: boolean;
+	baseJump: BaseJumpLevel;
 	lockedIn: boolean;
 	sessions: SessionMeta[];
 	currentSessionId: string | null;
@@ -69,6 +76,7 @@ export const DEFAULT_CONFIG: KaiakoConfig = {
 	requestLimit: null,
 	autoStartPi: false,
 	netSearch: false,
+	baseJump: "medium",
 	lockedIn: false,
 	sessions: [],
 	currentSessionId: null,
@@ -90,9 +98,22 @@ export function mergeConfig(raw: Partial<KaiakoConfig> | null | undefined): Kaia
 			typeof raw?.requestLimit === "number" && Number.isFinite(raw.requestLimit) && raw.requestLimit >= 0
 				? raw.requestLimit
 				: null,
-		sessions: Array.isArray(raw?.sessions) ? raw.sessions : [],
+		baseJump:
+			raw?.baseJump === "low" || raw?.baseJump === "high" || raw?.baseJump === "medium"
+				? raw.baseJump
+				: DEFAULT_CONFIG.baseJump,
+		sessions: Array.isArray(raw?.sessions)
+			? raw.sessions.map((session) => ({
+					...session,
+					title: typeof session.title === "string" && session.title.trim() ? session.title.trim() : "New topic",
+				}))
+			: [],
 	};
 	return normalizeKeys(merged);
+}
+
+export function limitTopicWords(title: string): string {
+	return title.trim().split(/\s+/).filter(Boolean).slice(0, 3).join(" ") || "Chat";
 }
 
 export function normalizeKeys(config: KaiakoConfig): KaiakoConfig {

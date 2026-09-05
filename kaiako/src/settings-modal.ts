@@ -1,17 +1,18 @@
 import { Modal, Notice, Setting, setIcon, type App } from "obsidian";
 import type KaiakoPlugin from "./main";
-import { newId, type ApiKeyEntry } from "./config";
+import { BASE_JUMP_LEVELS, newId, type ApiKeyEntry, type BaseJumpLevel } from "./config";
 import { PROVIDERS, appendProviderLogo, getProvider, type ProviderId } from "./providers";
 import { pickDataFolder } from "./folder";
 import { detectPiHarness, installPiHarness } from "./pi";
 import { deleteSessionFiles } from "./note-writer";
+import { exportKaiakoDataCsv, triggerCsvDownload } from "./export-data";
 import {
 	apiKeyCheckLabel,
 	checkApiKey,
 	type ApiKeyCheckState,
 } from "./api-key-check";
 
-type TabId = "keys" | "user-info" | "sessions" | "folder" | "pi";
+type TabId = "keys" | "user-info" | "sessions" | "folder" | "pi" | "base-jump" | "export-data";
 
 const TABS: { id: TabId; label: string; icon: string; group: string; search: string }[] = [
 	{ id: "keys", label: "API keys", icon: "key", group: "Account", search: "api keys providers models" },
@@ -19,6 +20,8 @@ const TABS: { id: TabId; label: string; icon: string; group: string; search: str
 	{ id: "sessions", label: "Sessions", icon: "archive", group: "Data", search: "sessions archive chats" },
 	{ id: "folder", label: "Folder", icon: "folder", group: "Data", search: "folder data location" },
 	{ id: "pi", label: "Pi", icon: "terminal", group: "Data", search: "pi harness tools" },
+	{ id: "base-jump", label: "Base Jump", icon: "sliders-horizontal", group: "Tuning", search: "base jump basal jump sensitivity learning level" },
+	{ id: "export-data", label: "Export data", icon: "download", group: "Tuning", search: "export csv stats learning time scores baseline" },
 ];
 
 const PRONOUNS_PATTERN = /^\s*[^/]+\s*\/\s*[^/]+\s*$/;
@@ -131,13 +134,15 @@ export class KaiakoSettingsModal extends Modal {
 		if (this.tab === "sessions") this.renderSessions(pane);
 		if (this.tab === "folder") this.renderFolder(pane);
 		if (this.tab === "pi") this.renderPi(pane);
+		if (this.tab === "base-jump") this.renderBaseJump(pane);
+		if (this.tab === "export-data") this.renderExportData(pane);
 	}
 
 	private renderKeys(pane: HTMLElement): void {
-		new Setting(pane).setName("Add an API key").setHeading();
 		new Setting(pane)
 			.setName("Provider options")
-			.setDesc("Choose a provider, click Add, then enter its API key.");
+			.setDesc("Choose a provider, click Add, then enter its API key.")
+			.setHeading();
 		const providerOptions = pane.createDiv({ cls: "kaiako-settings-provider-options" });
 		for (const item of PROVIDERS) {
 			const row = providerOptions.createDiv({ cls: "kaiako-settings-provider-option" });
@@ -572,6 +577,56 @@ export class KaiakoSettingsModal extends Modal {
 			.setDesc(
 				"Teach, harness, visualize, and writing skills from the learn/skills folder are copied into the data folder and Pi agent dir whenever Kaiako syncs.",
 			);
+	}
+
+	private renderBaseJump(pane: HTMLElement): void {
+		new Setting(pane).setName("Basal jump").setHeading();
+		const setting = new Setting(pane)
+			.setName("Sensitivity")
+			.setDesc("Determine how much you want to learn from what you already know (automatically adjusted by Pi)");
+		setting.settingEl.addClass("kaiako-settings-tuning");
+		const marks = setting.controlEl.createDiv({ cls: "kaiako-tuning-levels" });
+		for (const level of BASE_JUMP_LEVELS) marks.createSpan({ text: level });
+		const initial = BASE_JUMP_LEVELS.indexOf(this.plugin.config.baseJump);
+		setting.addSlider((slider) => {
+			slider
+				.setLimits(0, BASE_JUMP_LEVELS.length - 1, 1)
+				.setValue(initial < 0 ? 1 : initial);
+			slider.sliderEl.setAttr("aria-label", "Base Jump level");
+			const paint = (index: number) => {
+				const level = BASE_JUMP_LEVELS[index] ?? "medium";
+				slider.sliderEl.setAttr("aria-valuetext", level);
+			};
+			paint(initial < 0 ? 1 : initial);
+			slider.onChange((next) => {
+				const level = BASE_JUMP_LEVELS[Math.round(next)] as BaseJumpLevel | undefined;
+				if (!level) return;
+				paint(Math.round(next));
+				void this.plugin.saveConfig({ baseJump: level });
+			});
+		});
+	}
+
+	private renderExportData(pane: HTMLElement): void {
+		new Setting(pane).setName("Export data").setHeading();
+		new Setting(pane)
+			.setName("Learning data CSV")
+			.setDesc("Export Base Jump, baseline and score data, diagnostic performance, active session time, and combined averages. Time pauses after two minutes idle.")
+			.addButton((button) => {
+				button.setButtonText("Export CSV");
+				button.onClick(() => {
+					button.setDisabled(true);
+					void exportKaiakoDataCsv(this.app, this.plugin.config)
+						.then((csv) => {
+							triggerCsvDownload(csv);
+							new Notice("Kaiako learning data exported.");
+						})
+						.catch((error) => {
+							new Notice(`Could not export learning data: ${error instanceof Error ? error.message : "unknown error"}`);
+						})
+						.finally(() => button.setDisabled(false));
+				});
+			});
 	}
 
 	private async installAndLinkHarness(): Promise<void> {

@@ -1,5 +1,5 @@
 import { Notice, TFile, normalizePath, type App } from "obsidian";
-import { newId, type DiagnosticItemRecord, type SessionMeta, type SessionPhase } from "./config";
+import { limitTopicWords, newId, type DiagnosticItemRecord, type SessionMeta, type SessionPhase } from "./config";
 import type { KnowledgeEstimate } from "./knowledge";
 
 export function sessionHash(): string {
@@ -92,7 +92,8 @@ export async function appendToSession(
 
 export async function createSessionNote(app: App, title: string): Promise<SessionMeta> {
 	const id = sessionHash();
-	const safe = title.replace(/[\\/:#*?"<>|]/g, "-").trim() || "Chat";
+	const topic = limitTopicWords(title);
+	const safe = topic.replace(/[\\/:#*?"<>|]/g, "-").trim() || "Chat";
 	const path = normalizePath(`Kaiako/${safe}-${id.slice(0, 8)}.md`);
 	const folder = path.split("/").slice(0, -1).join("/");
 	if (folder && !app.vault.getAbstractFileByPath(folder)) {
@@ -101,14 +102,18 @@ export async function createSessionNote(app: App, title: string): Promise<Sessio
 	const body = [
 		"---",
 		`kaiako_session: ${id}`,
-		`kaiako_topic: ${JSON.stringify(title)}`,
+		`kaiako_topic: ${JSON.stringify(topic)}`,
+		"kaiako_topic_generated: false",
+		`cssclasses: ${JSON.stringify(["kaiako-session"])}`,
 		"kaiako_goal: \"\"",
 		"kaiako_phase: need_goal",
 		"kaiako_knowledge_score: null",
 		"kaiako_teaching_entry: null",
+		"kaiako_active_seconds: 0",
+		"kaiako_last_interaction_at: null",
 		"---",
 		"",
-		`# ${title}`,
+		`# ${topic}`,
 		"",
 		`_Kaiako session \`${id.slice(0, 8)}\` · ${new Date().toLocaleString()}_`,
 		"",
@@ -124,18 +129,21 @@ export async function createSessionNote(app: App, title: string): Promise<Sessio
 	await app.workspace.getLeaf(false).openFile(file);
 	return {
 		id,
-		title,
+		title: topic,
+		topicGenerated: false,
 		filePath: file.path,
 		createdAt: Date.now(),
 		goal: "",
 		phase: "need_goal",
 		diagnosticItems: [],
+		activeSeconds: 0,
 	};
 }
 
 export async function openSessionNote(app: App, session: SessionMeta): Promise<void> {
 	const file = app.vault.getAbstractFileByPath(session.filePath);
 	if (file instanceof TFile) {
+		await ensureKaiakoSessionClass(app, file);
 		await app.workspace.getLeaf(false).openFile(file);
 		return;
 	}
@@ -146,13 +154,49 @@ export async function readSessionBody(app: App, session: SessionMeta | null): Pr
 	if (!session) return "";
 	const file = app.vault.getAbstractFileByPath(session.filePath);
 	if (!(file instanceof TFile)) return "";
+	await ensureKaiakoSessionClass(app, file);
 	const text = await app.vault.read(file);
 	const body = text.replace(/^---\n[\s\S]*?\n---\n*/, "").trim();
 	const sessionMarker = escapeRegExp(`Kaiako session \`${session.id.slice(0, 8)}\``);
-	const scaffold = new RegExp(
-		"^# " + escapeRegExp(session.title) + "\\s*\\n\\s*_" + sessionMarker + " · [^\\n]+_\\s*",
-	);
+	const scaffold = new RegExp("^# [^\\n]+\\s*\\n\\s*_" + sessionMarker + " · [^\\n]+_\\s*", "i");
 	return body.replace(scaffold, "").trim();
+}
+
+async function ensureKaiakoSessionClass(app: App, file: TFile): Promise<void> {
+	const text = await app.vault.read(file);
+	const frontmatter = text.match(/^---\n([\s\S]*?)\n---\n/);
+	if (!frontmatter) return;
+	const existing = frontmatter[1] ?? "";
+	const cssLine = existing.match(/^cssclasses:\s*(.*)$/m);
+	if (cssLine?.[1]?.includes("kaiako-session")) return;
+	await app.vault.process(file, (data) => {
+		const match = data.match(/^---\n([\s\S]*?)\n---\n/);
+		if (!match) return data;
+		const current = match[1] ?? "";
+		const currentCss = current.match(/^cssclasses:\s*(.*)$/m);
+		let nextFrontmatter: string;
+		if (!currentCss) {
+			nextFrontmatter = `${current}\ncssclasses: ${JSON.stringify(["kaiako-session"])}`;
+		} else {
+			const value = currentCss[1]?.trim() ?? "";
+			let classes: string[] = [];
+			if (value.startsWith("[") && value.endsWith("]")) {
+				try {
+					const parsed = JSON.parse(value) as unknown;
+					classes = Array.isArray(parsed) ? parsed.map(String) : [];
+				} catch {
+					classes = [];
+				}
+			} else {
+				classes = value.split(/\s+/).filter(Boolean);
+			}
+			nextFrontmatter = current.replace(
+				currentCss[0],
+				`cssclasses: ${JSON.stringify([...classes, "kaiako-session"])}`,
+			);
+		}
+		return `---\n${nextFrontmatter}\n---\n${data.slice(match[0].length)}`;
+	});
 }
 
 export async function deleteSessionFiles(app: App, sessions: SessionMeta[]): Promise<void> {
@@ -182,6 +226,8 @@ export function parseFrontmatter(text: string): Record<string, string> {
 
 export function harnessFromFrontmatter(fields: Record<string, string>): Partial<SessionMeta> {
 	const out: Partial<SessionMeta> = {};
+	const topicGenerated = parseBoolean(fields.kaiako_topic_generated);
+	if (topicGenerated != null) out.topicGenerated = topicGenerated;
 	if ("kaiako_goal" in fields) out.goal = unquote(fields.kaiako_goal);
 	const phase = fields.kaiako_phase?.trim() as SessionPhase | undefined;
 	if (phase === "diagnostic" || phase === "teaching" || phase === "need_goal") out.phase = phase;
@@ -190,11 +236,15 @@ export function harnessFromFrontmatter(fields: Record<string, string>): Partial<
 	const se = parseNullableNumber(fields.kaiako_knowledge_se);
 	const entry = parseNullableNumber(fields.kaiako_teaching_entry);
 	const accuracy = parseNullableNumber(fields.kaiako_accuracy);
+	const activeSeconds = parseNullableNumber(fields.kaiako_active_seconds);
+	const lastInteractionAt = parseNullableNumber(fields.kaiako_last_interaction_at);
 	if (score != null) out.knowledgeScore = score;
 	if (theta != null) out.knowledgeTheta = theta;
 	if (se != null) out.knowledgeSe = se;
 	if (entry != null) out.teachingEntry = entry;
 	if (accuracy != null) out.accuracy = accuracy;
+	if (activeSeconds != null && activeSeconds >= 0) out.activeSeconds = activeSeconds;
+	if (lastInteractionAt != null && lastInteractionAt > 0) out.lastInteractionAt = lastInteractionAt;
 	if (fields.kaiako_diagnostic) {
 		try {
 			const parsed = JSON.parse(unquote(fields.kaiako_diagnostic)) as DiagnosticItemRecord[];
@@ -214,6 +264,22 @@ export function harnessFromFrontmatter(fields: Record<string, string>): Partial<
 		}
 	}
 	return out;
+}
+
+export async function updateSessionTopic(app: App, session: SessionMeta, title: string): Promise<void> {
+	const file = app.vault.getAbstractFileByPath(session.filePath);
+	if (!(file instanceof TFile)) return;
+	const topic = limitTopicWords(title);
+	await app.vault.process(file, (data) => {
+		const withFrontmatter = data.replace(
+			/^kaiako_topic:\s*.*$/m,
+			`kaiako_topic: ${JSON.stringify(topic)}`,
+		);
+		return withFrontmatter.replace(
+			/^# [^\n]+(?=\n\n_Kaiako session `[^`]+` · )/m,
+			`# ${topic}`,
+		);
+	});
 }
 
 export async function readSessionHarness(app: App, session: SessionMeta | null): Promise<Partial<SessionMeta>> {
@@ -311,4 +377,11 @@ function parseNullableNumber(value: string | undefined): number | null {
 	if (!value || value.trim() === "null") return null;
 	const parsed = Number(value);
 	return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseBoolean(value: string | undefined): boolean | null {
+	if (!value) return null;
+	if (value.trim().toLowerCase() === "true") return true;
+	if (value.trim().toLowerCase() === "false") return false;
+	return null;
 }
