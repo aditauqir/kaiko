@@ -1093,27 +1093,18 @@ export class KaiakoView extends ItemView {
 		}
 		const toWrite = stripUnrenderableComments(stripTopicMarker((mcq ? prose : full).trim()));
 
-		if (mcq && phase === "need_goal") {
-			if (toWrite) await appendToSession(this.app, session, toWrite);
-			await this.fillMessages(messages, greet);
-			this.scrollToBottom(messages);
-			this.promptBar?.setOrb(null);
-			this.promptBar?.setInternetActive(false);
-			await this.runPiTurn(
-				messages,
-				session,
-				"(No goal is stored. Ask for the learning goal now. Do not quiz.)",
-			);
-			return;
-		}
-
-		if (mcq && phase !== "need_goal") {
+		if (mcq) {
 			if (toWrite) await appendToSession(this.app, session, toWrite);
 			await appendToSession(this.app, session, formatMcqQuestion(mcq));
+			const goal: string =
+				(hasStoredGoal(session.goal) && session.goal ? session.goal : null) ||
+				(session.title && session.title !== "New topic" ? session.title : "Smoke test diagnostic");
 			await patchSessionFrontmatter(this.app, session, {
+				kaiako_goal: goal,
+				kaiako_phase: "diagnostic",
 				kaiako_pending_mcq: JSON.stringify(mcq),
 			});
-			session = { ...session, pendingMcq: mcq };
+			session = { ...session, goal, phase: "diagnostic", pendingMcq: mcq };
 			await this.saveSession(session);
 			await this.fillMessages(messages, greet);
 			this.scrollToBottom(messages);

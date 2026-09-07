@@ -11,11 +11,52 @@ export interface McqItem {
 	correct: string;
 }
 
-const FENCE = /```kaiako-mcq\s*([\s\S]*?)```/i;
-const FENCE_GLOBAL = /```kaiako-mcq\s*([\s\S]*?)```/gi;
+const FENCE = /```(?:kaiako-)?mcq\s*([\s\S]*?)```/i;
+const FENCE_GLOBAL = /```(?:kaiako-)?mcq\s*([\s\S]*?)```/gi;
 const MARKED_BLOCK = /<!--\s*kaiako-mcq\s*-->\s*([\s\S]*?)\s*<!--\s*\/kaiako-mcq\s*-->/i;
-const GLOBAL_CORRECT = /<!--\s*(?:correct|answer)\s*:\s*([a-dA-D])\s*-->/i;
-const QUESTION_START = /(?:^|\n)(?:[ \t]*<!--\s*(?:correct|answer)\s*:\s*[a-dA-D]\s*-->[ \t]*\n)?\s*(?:#{1,6}\s*)?(?:\*\*)?Question:?(?:\*\*)?\s+/i;
+const GLOBAL_CORRECT = /(?:<!--\s*(?:correct|answer)\s*:\s*(?:option\s+)?(?:\*\*|\()?([a-dA-D]|[1-4])(?:\*\*|\))?\s*-->|(?:\*\*|#)?\s*(?:correct(?:\s*answer)?|answer)\s*(?::\*\*|(?:\*\*)?:|[-:])\s*(?:option\s+)?(?:\*\*|\()?([a-dA-D]|[1-4])(?:\*\*|\)?|\.))/i;
+
+/**
+ * Matches options formatted in any common style:
+ * - A. / - A) / - A: / - A -
+ * - **A.** / - **A)** / - **A**: / - **A**
+ * **A.** / **A)** / **A**: / **A**
+ * (A) / - (A) / [A] / - [A]
+ * A. / A) / A: / A -
+ * Numbered: 1. / - 1. / 1) / **1.** / **1)**
+ * YAML: a: text
+ */
+function matchOptionLine(line: string): McqOption | null {
+	const trimmed = line.trim();
+	if (!trimmed || GLOBAL_CORRECT.test(trimmed)) return null;
+
+	const m = trimmed.match(
+		/^(?:[-*+]\s+)?(?:(?:\*\*|\()?\s*([a-dA-D]|[1-4])\s*(?:\*\*|\))?[.)\-:]?|(?:\*\*|\()\s*([a-dA-D]|[1-4])\s*[.)\-:]?\s*(?:\*\*|\))|(?:\*\*)?([a-dA-D]|[1-4])(?:\*\*)?\s*[.)\-:]?|\[([a-dA-D]|[1-4])\])\s+(.+)$/i,
+	);
+	if (m) {
+		let rawId = (m[1] || m[2] || m[3] || m[4] || "").toLowerCase();
+		if (rawId === "1") rawId = "a";
+		else if (rawId === "2") rawId = "b";
+		else if (rawId === "3") rawId = "c";
+		else if (rawId === "4") rawId = "d";
+		const text = (m[5] || "").replace(/^\*\*\s*/, "").replace(/\s*\*\*$/, "").trim();
+		if (text) return { id: rawId, text };
+	}
+
+	const yamlMatch = trimmed.match(/^([a-dA-D])\s*:\s*(.+)$/);
+	if (yamlMatch && yamlMatch[1] && yamlMatch[2]) {
+		return { id: yamlMatch[1].toLowerCase(), text: yamlMatch[2].trim() };
+	}
+
+	return null;
+}
+
+function cleanStemText(stem: string): string {
+	return stem
+		.replace(/^\s*(?:#{1,6}\s*)?(?:\*\*)?(?:smoke\s*test(?:\s+question)?|diagnostic(?:\s+question)?|question(?:\s*\d+)?)(?:\*\*)?[:.]?(?:\*\*)?\s*/i, "")
+		.replace(/^\s*\d+[.)]\s+/, "")
+		.trim();
+}
 
 /**
  * Strips internal control comments and markers from markdown so the result
@@ -26,7 +67,7 @@ export function stripUnrenderableComments(markdown: string): string {
 	if (!markdown) return "";
 	// 1. Remove kaiako-mcq fences (both markdown code fences and HTML comment markers)
 	let cleaned = markdown
-		.replace(/```kaiako-mcq[\s\S]*?(```|$)/gi, "")
+		.replace(/```(?:kaiako-)?mcq[\s\S]*?(```|$)/gi, "")
 		.replace(/<!--\s*kaiako-mcq\s*-->[\s\S]*?(?:<!--\s*\/kaiako-mcq\s*-->|$)/gi, "");
 
 	// 2. Remove all HTML comments outside of legitimate code blocks.
@@ -45,9 +86,18 @@ export function stripUnrenderableComments(markdown: string): string {
 		.trim();
 }
 
+function extractGlobalCorrect(text: string): string {
+	const match = text.match(GLOBAL_CORRECT);
+	let cid = (match?.[1] || match?.[2] || "").toLowerCase();
+	if (cid === "1") cid = "a";
+	else if (cid === "2") cid = "b";
+	else if (cid === "3") cid = "c";
+	else if (cid === "4") cid = "d";
+	return cid;
+}
+
 export function splitMcq(markdown: string): { prose: string; mcq: McqItem | null } {
-	const globalCorrectMatch = markdown.match(GLOBAL_CORRECT);
-	const globalCorrect = globalCorrectMatch?.[1]?.toLowerCase();
+	const globalCorrect = extractGlobalCorrect(markdown);
 
 	const match = markdown.match(FENCE);
 	if (match) {
@@ -70,16 +120,27 @@ export function splitMcq(markdown: string): { prose: string; mcq: McqItem | null
 	}
 
 	// Fallback: Check if clean Markdown MCQ was generated without fences
-	const qMatch = markdown.match(QUESTION_START);
-	if (qMatch && qMatch.index != null) {
-		const matchStart = qMatch.index + (qMatch[0].startsWith("\n") ? 1 : 0);
-		const candidate = markdown.slice(matchStart);
+	const lines = markdown.split("\n");
+	let firstOpt = -1;
+	for (let i = 0; i < lines.length; i += 1) {
+		if (matchOptionLine(lines[i] ?? "")) {
+			firstOpt = i;
+			break;
+		}
+	}
+
+	if (firstOpt >= 0) {
+		let qStart = firstOpt;
+		while (qStart > 0 && (lines[qStart - 1] ?? "").trim().length > 0) {
+			qStart -= 1;
+		}
+		const candidate = lines.slice(qStart).join("\n");
 		let mcq = parseMcqBlock(candidate);
 		if (mcq) {
 			if (globalCorrect && (!mcq.correct || mcq.correct === mcq.options[0]?.id)) {
 				if (mcq.options.some((o) => o.id === globalCorrect)) mcq.correct = globalCorrect;
 			}
-			const prose = stripUnrenderableComments(markdown.slice(0, matchStart));
+			const prose = stripUnrenderableComments(lines.slice(0, qStart).join("\n"));
 			return { prose, mcq };
 		}
 	}
@@ -89,7 +150,7 @@ export function splitMcq(markdown: string): { prose: string; mcq: McqItem | null
 
 export function stripMcqFences(markdown: string): string {
 	const withoutFences = markdown
-		.replace(/```kaiako-mcq[\s\S]*?(```|$)/gi, "")
+		.replace(/```(?:kaiako-)?mcq[\s\S]*?(```|$)/gi, "")
 		.replace(MARKED_BLOCK, "")
 		.replace(/<!--\s*kaiako-mcq\s*-->[\s\S]*$/i, "");
 	return stripUnrenderableComments(withoutFences);
@@ -120,60 +181,78 @@ export function parseMcqBlock(raw: string): McqItem | null {
 
 function parseCleanMarkdown(raw: string): McqItem | null {
 	const lines = raw.split("\n");
-	let questionIndex = -1;
-	let stem = "";
-	for (let index = 0; index < lines.length; index += 1) {
-		const line = lines[index] ?? "";
-		const match = line.match(/^\s*(?:#{1,6}\s*)?(?:\*\*)?Question:?(?:\*\*)?\s*(.*)$/i);
-		if (match) {
-			questionIndex = index;
-			stem = match[1]?.trim() ?? "";
-			break;
-		}
-	}
-	if (questionIndex === -1) return null;
-
-	const stemLines = stem ? [stem] : [];
+	const stemLines: string[] = [];
 	const options: McqOption[] = [];
+	let currentOption: McqOption | null = null;
 	let correct = "";
-	let current: McqOption | null = null;
+	let difficulty = 0;
+	let id = `q-${Date.now()}`;
 
-	// Check lines before questionIndex for correct marker placed above the question
-	for (let index = 0; index < questionIndex; index += 1) {
-		const line = (lines[index] ?? "").trim();
-		const answer = line.match(/<!--\s*(?:correct|answer)\s*:\s*([a-d])\s*-->/i);
-		if (answer?.[1]) {
-			correct = answer[1].toLowerCase();
-		} else {
-			const visibleAnswer = line.match(/^(?:answer|correct)\s*:\s*([a-d])/i);
-			if (visibleAnswer?.[1]) correct = visibleAnswer[1].toLowerCase();
-		}
-	}
-
-	for (let index = questionIndex + 1; index < lines.length; index += 1) {
-		const line = (lines[index] ?? "").trim();
+	for (let i = 0; i < lines.length; i += 1) {
+		const line = (lines[i] ?? "").trim();
 		if (!line) continue;
-		const answer = line.match(/<!--\s*(?:correct|answer)\s*:\s*([a-d])\s*-->/i);
-		if (answer?.[1]) {
-			correct = answer[1].toLowerCase();
+
+		// Check correct answer marker
+		const cMatch = line.match(GLOBAL_CORRECT);
+		if (cMatch) {
+			let cid = (cMatch[1] || cMatch[2] || "").toLowerCase();
+			if (cid === "1") cid = "a";
+			else if (cid === "2") cid = "b";
+			else if (cid === "3") cid = "c";
+			else if (cid === "4") cid = "d";
+			if (cid) correct = cid;
 			continue;
 		}
-		if (/^(?:answer|correct|rationale)\s*:/i.test(line)) {
-			const visibleAnswer = line.match(/^(?:answer|correct)\s*:\s*([a-d])/i);
-			if (visibleAnswer?.[1]) correct = visibleAnswer[1].toLowerCase();
+
+		// Check YAML metadata: id, difficulty, stem/question
+		const diffMatch = line.match(/^(?:difficulty|item_difficulty)\s*:\s*([+-]?\d+(?:\.\d+)?)/i);
+		if (diffMatch?.[1] && options.length === 0) {
+			difficulty = parseFloat(diffMatch[1]);
 			continue;
 		}
-		const option = line.match(/^\s*(?:[-*+]\s*)?(?:\*\*)?([a-d])(?:\*\*)?\s*[.)\-:]\s+(.+?)\s*$/i);
-		if (option?.[1] && option[2]) {
-			current = { id: option[1].toLowerCase(), text: option[2].trim() };
-			options.push(current);
+		const idMatch = line.match(/^id\s*:\s*(\S+)/i);
+		if (idMatch?.[1] && options.length === 0) {
+			id = idMatch[1];
 			continue;
 		}
-		if (options.length === 0) stemLines.push(line);
-		else if (current) current.text = `${current.text} ${line}`.trim();
+		const yamlStemMatch = line.match(/^(?:stem|question)\s*:\s*(.+)$/i);
+		if (yamlStemMatch?.[1] && options.length === 0) {
+			stemLines.push(yamlStemMatch[1]);
+			continue;
+		}
+
+		// Check option
+		const opt = matchOptionLine(line);
+		if (opt) {
+			currentOption = opt;
+			options.push(opt);
+			continue;
+		}
+
+		if (options.length === 0) {
+			// Lines before options belong to stem
+			stemLines.push(line);
+		} else if (currentOption) {
+			// Continuation line for current option
+			currentOption.text += ` ${line}`;
+		}
 	}
+
 	if (options.length < 2) return null;
-	return normalizeMcq({ stem: stemLines.join(" ").trim(), options, correct: correct || options[0]?.id });
+
+	const rawStem = stemLines.join(" ").trim();
+	const stem = cleanStemText(rawStem) || "Select the correct option:";
+	if (!correct || !options.some((o) => o.id === correct)) {
+		correct = options[0]?.id || "a";
+	}
+
+	return normalizeMcq({
+		id,
+		difficulty,
+		stem,
+		options,
+		correct,
+	});
 }
 
 function parseMcqLines(raw: string): McqItem | null {
@@ -199,9 +278,9 @@ function parseMcqLines(raw: string): McqItem | null {
 			else data.question = value;
 			continue;
 		}
-		const option = trimmed.match(/^(?:-\s*)?(?:option\s+)?([a-dA-D])\s*[:).=-]\s*(.+)$/);
-		if (option?.[1] && option[2]) {
-			options.push({ id: option[1].toLowerCase(), text: option[2].trim() });
+		const option = matchOptionLine(trimmed);
+		if (option) {
+			options.push(option);
 			continue;
 		}
 		const kv = trimmed.match(/^([A-Za-z_]+)\s*:\s*(.+)$/);
@@ -216,8 +295,8 @@ function normalizeMcq(raw: Record<string, unknown>): McqItem | null {
 	if (!stem) return null;
 	const options = normalizeOptions(raw.options);
 	if (options.length < 2) return null;
-	const correct = String(raw.correct ?? raw.correctAnswer ?? options[0]?.id ?? "").trim().toLowerCase();
-	if (!options.some((opt) => opt.id === correct)) return null;
+	const rawCorrect = String(raw.correct ?? raw.correctAnswer ?? options[0]?.id ?? "").trim().toLowerCase();
+	const correct = options.some((opt) => opt.id === rawCorrect) ? rawCorrect : options[0]?.id ?? "a";
 	const difficulty = Number(raw.difficulty ?? raw.b ?? 0);
 	return {
 		id: String(raw.id ?? `q-${Date.now()}`),

@@ -1,18 +1,52 @@
-# OS junk
+# OS & System metadata
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Dependencies
+# Node & Package Managers
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json.bak
 
-# Environment
+# Compilation & Build outputs
+dist/
+build/
+*.tsbuildinfo
+*.log
+
+# Environment & Credentials
 .env
 .env.*
+*.local
+*.pem
 
-# Python
+# Python artifacts
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 .venv/
+venv/
+ENV/
 
-# Runtime state
+# Runtime state & Obsidian test vaults
 .memory/
-*.log
+.obsidian/
+test-vault/
+
+# IDE & Editor configs
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~

@@ -1,12 +1,13 @@
 {
-	"name": "kaiako",
-	"version": "0.2.0",
-	"description": "Kaiako — A Zirn labs project. An useful Obsidian assistant to help you learn.",
+	"name": "kaiko",
+	"version": "1.0.0",
+	"description": "Kaiko — Adaptive AI learning companion for Obsidian powered by psychometric knowledge modeling.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
-		"build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production"
+		"build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
+		"package": "npm run build && mkdir -p ../releases && zip -j ../releases/Kaiko-1.0.0.zip main.js manifest.json styles.css"
 	},
 	"license": "0-BSD",
 	"devDependencies": {
