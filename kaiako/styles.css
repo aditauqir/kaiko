@@ -305,6 +305,10 @@
 	display: flex;
 	flex-direction: column;
 	height: 100%;
+	min-width: 0;
+	width: 100%;
+	box-sizing: border-box;
+	overflow: hidden;
 	padding: 0.75rem;
 	gap: 0.65rem;
 	background: transparent;
@@ -367,11 +371,15 @@
 
 .kaiako-messages {
 	flex: 1 1 auto;
-	overflow: auto;
+	overflow-y: auto;
+	overflow-x: hidden;
 	display: flex;
 	flex-direction: column;
-	gap: 0.15rem;
-	padding: 0.2rem;
+	gap: 1.35rem;
+	padding: 0.6rem 0.65rem 1.25rem;
+	min-width: 0;
+	width: 100%;
+	box-sizing: border-box;
 }
 
 .kaiako-empty {
@@ -410,7 +418,9 @@
 
 .kaiako-bubble {
 	align-self: flex-end;
+	box-sizing: border-box;
 	max-width: 92%;
+	min-width: 0;
 	padding: 0.65rem 0.8rem;
 	border-radius: 0.85rem;
 	background: rgba(255, 255, 252, 0.72);
@@ -424,12 +434,16 @@
 
 .kaiako-turn {
 	align-self: stretch;
+	box-sizing: border-box;
 	max-width: 100%;
+	min-width: 0;
+	width: 100%;
 	font-family: var(--kaiako-font-ui);
-	font-size: 0.85rem;
-	line-height: 1.45;
+	font-size: 0.86rem;
+	line-height: 1.6;
 	word-break: break-word;
 	color: #2a2622;
+	margin-block: 0.35rem;
 }
 
 .kaiako-turn--user {
@@ -437,7 +451,8 @@
 	box-sizing: border-box;
 	width: fit-content;
 	max-width: min(88%, 34rem);
-	margin-block: 0.45rem 0.65rem;
+	min-width: 0;
+	margin-block: 0.65rem 0.85rem;
 	padding: 0.8rem 1.05rem;
 	border-radius: 0.75rem;
 	background: rgba(42, 38, 34, 0.06);
@@ -713,23 +728,226 @@
 	line-height: 1.22;
 }
 
-.kaiako-root .kaiako-md {
+.kaiako-root .kaiako-md,
+.kaiako-md {
 	font-size: 0.85rem;
 	color: #2a2622;
+	min-width: 0;
+	max-width: 100%;
+	width: 100%;
+	box-sizing: border-box;
+	overflow-wrap: break-word;
 }
 
-.kaiako-md code,
+/* Media and tables within markdown should never overflow sidebar */
+.kaiako-md img,
+.kaiako-bubble img {
+	max-width: 100%;
+	height: auto;
+}
+
+.kaiako-md table,
+.kaiako-bubble table {
+	display: block;
+	max-width: 100%;
+	width: 100%;
+	overflow-x: auto;
+	box-sizing: border-box;
+}
+
+/* Code block containers & wrappers (e.g. Obsidian block-language classes) */
+.kaiako-md [class*="block-language-"],
+.kaiako-md .code-block-wrapper,
+.kaiako-bubble [class*="block-language-"],
+.kaiako-bubble .code-block-wrapper,
+.kaiako-mcq [class*="block-language-"],
+.kaiako-mcq .code-block-wrapper {
+	max-width: 100% !important;
+	width: 100% !important;
+	min-width: 0 !important;
+	box-sizing: border-box !important;
+	overflow: visible;
+}
+
+/* Preformatted code blocks: viewport-width of sidebar, horizontally scrollable if larger */
 .kaiako-md pre,
-.kaiako-bubble code,
 .kaiako-bubble pre,
-.kaiako-mcq code,
 .kaiako-mcq pre {
+	position: relative;
+	box-sizing: border-box !important;
+	max-width: 100% !important;
+	width: 100% !important;
+	min-width: 0 !important;
+	overflow-x: auto !important;
+	overflow-y: hidden !important;
+	overscroll-behavior-x: contain;
+	-webkit-overflow-scrolling: touch;
+	white-space: pre !important;
+	word-break: normal !important;
+	word-wrap: normal !important;
+	margin: 0.75rem 0 !important;
+	padding: 0.75rem 0.85rem !important;
+	border-radius: 0.6rem !important;
+	font-family: var(--font-monospace, ui-monospace, SFMono-Regular, Menlo, monospace) !important;
+	font-size: 0.82rem !important;
+	line-height: 1.5 !important;
+	background: rgba(42, 38, 34, 0.05);
+	border: 1px solid rgba(42, 38, 34, 0.1);
+	color: #2a2622;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(42, 38, 34, 0.25) transparent;
+}
+
+.kaiako-md pre::-webkit-scrollbar,
+.kaiako-bubble pre::-webkit-scrollbar,
+.kaiako-mcq pre::-webkit-scrollbar {
+	height: 6px;
+}
+
+.kaiako-md pre::-webkit-scrollbar-track,
+.kaiako-bubble pre::-webkit-scrollbar-track,
+.kaiako-mcq pre::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.kaiako-md pre::-webkit-scrollbar-thumb,
+.kaiako-bubble pre::-webkit-scrollbar-thumb,
+.kaiako-mcq pre::-webkit-scrollbar-thumb {
+	background: rgba(42, 38, 34, 0.2);
+	border-radius: 9999px;
+}
+
+/* Code element inside pre expands to content width so pre scrolls horizontally */
+.kaiako-md pre > code,
+.kaiako-bubble pre > code,
+.kaiako-mcq pre > code {
+	display: block !important;
+	width: max-content !important;
+	min-width: 100% !important;
+	box-sizing: border-box !important;
+	white-space: pre !important;
+	word-break: normal !important;
+	word-wrap: normal !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	background: transparent !important;
+	border: none !important;
+	font-family: inherit !important;
+	font-size: inherit !important;
+	line-height: inherit !important;
+	color: inherit !important;
+}
+
+/* Inline code styling */
+.kaiako-md :not(pre) > code,
+.kaiako-bubble :not(pre) > code,
+.kaiako-mcq :not(pre) > code {
 	font-family: var(--font-monospace, ui-monospace, SFMono-Regular, Menlo, monospace);
+	font-size: 0.84em;
+	padding: 0.12rem 0.35rem;
+	border-radius: 0.35rem;
+	background: rgba(42, 38, 34, 0.07);
+	color: #2a2622;
+	word-break: break-word;
+	white-space: break-spaces;
+}
+
+/* Math blocks: viewport-width of sidebar, horizontally scrollable if larger */
+.kaiako-md .math-block,
+.kaiako-md div.math,
+.kaiako-md .MathJax_Display,
+.kaiako-md .katex-display,
+.kaiako-bubble .math-block,
+.kaiako-bubble div.math,
+.kaiako-bubble .MathJax_Display,
+.kaiako-bubble .katex-display,
+.kaiako-mcq .math-block,
+.kaiako-mcq div.math,
+.kaiako-mcq .MathJax_Display,
+.kaiako-mcq .katex-display {
+	display: block !important;
+	max-width: 100% !important;
+	width: 100% !important;
+	min-width: 0 !important;
+	box-sizing: border-box !important;
+	overflow-x: auto !important;
+	overflow-y: hidden !important;
+	overscroll-behavior-x: contain;
+	-webkit-overflow-scrolling: touch;
+	text-align: center;
+	margin: 0.75rem 0 !important;
+	padding: 0.45rem 0.35rem !important;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(42, 38, 34, 0.25) transparent;
+}
+
+.kaiako-md mjx-container[display="true"],
+.kaiako-bubble mjx-container[display="true"],
+.kaiako-mcq mjx-container[display="true"] {
+	display: block !important;
+	max-width: 100% !important;
+	width: 100% !important;
+	min-width: 0 !important;
+	box-sizing: border-box !important;
+	overflow-x: auto !important;
+	overflow-y: hidden !important;
+	overscroll-behavior-x: contain;
+	-webkit-overflow-scrolling: touch;
+	text-align: center;
+	margin: 0.5rem 0 !important;
+	padding: 0.4rem 0.2rem !important;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(42, 38, 34, 0.25) transparent;
+}
+
+/* When mjx-container or katex is nested inside math-block, delegate scrolling to outer math-block */
+.kaiako-md .math-block > mjx-container[display="true"],
+.kaiako-bubble .math-block > mjx-container[display="true"],
+.kaiako-mcq .math-block > mjx-container[display="true"],
+.kaiako-md .math-block > .katex-display,
+.kaiako-bubble .math-block > .katex-display,
+.kaiako-mcq .math-block > .katex-display {
+	margin: 0 !important;
+	padding: 0 !important;
+	overflow-x: visible !important;
+	width: auto !important;
+	max-width: none !important;
+	min-width: min-content !important;
+	display: inline-block !important;
+}
+
+.kaiako-md .math-block::-webkit-scrollbar,
+.kaiako-md mjx-container[display="true"]::-webkit-scrollbar,
+.kaiako-bubble .math-block::-webkit-scrollbar,
+.kaiako-bubble mjx-container[display="true"]::-webkit-scrollbar,
+.kaiako-mcq .math-block::-webkit-scrollbar,
+.kaiako-mcq mjx-container[display="true"]::-webkit-scrollbar {
+	height: 6px;
+}
+
+.kaiako-md .math-block::-webkit-scrollbar-track,
+.kaiako-md mjx-container[display="true"]::-webkit-scrollbar-track,
+.kaiako-bubble .math-block::-webkit-scrollbar-track,
+.kaiako-bubble mjx-container[display="true"]::-webkit-scrollbar-track,
+.kaiako-mcq .math-block::-webkit-scrollbar-track,
+.kaiako-mcq mjx-container[display="true"]::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.kaiako-md .math-block::-webkit-scrollbar-thumb,
+.kaiako-md mjx-container[display="true"]::-webkit-scrollbar-thumb,
+.kaiako-bubble .math-block::-webkit-scrollbar-thumb,
+.kaiako-bubble mjx-container[display="true"]::-webkit-scrollbar-thumb,
+.kaiako-mcq .math-block::-webkit-scrollbar-thumb,
+.kaiako-mcq mjx-container[display="true"]::-webkit-scrollbar-thumb {
+	background: rgba(42, 38, 34, 0.2);
+	border-radius: 9999px;
 }
 
 .kaiako-md p,
 .kaiako-bubble p {
-	margin: 0.2rem 0;
+	margin: 0.65rem 0;
+	line-height: 1.6;
 }
 
 .kaiako-md > :first-child,
@@ -740,6 +958,57 @@
 .kaiako-md > :last-child,
 .kaiako-bubble > :last-child {
 	margin-bottom: 0;
+}
+
+.kaiako-question-item {
+	font-weight: 600;
+	font-size: 0.9rem;
+	line-height: 1.5;
+	margin-top: 1.45rem !important;
+	margin-bottom: 0.55rem !important;
+	color: #2a2622;
+}
+
+.kaiako-turn > .kaiako-md > .kaiako-question-item:first-child {
+	margin-top: 0.2rem !important;
+}
+
+.kaiako-result-item {
+	font-size: 0.84rem;
+	font-weight: 600;
+	margin-top: 0.45rem !important;
+	margin-bottom: 0.25rem !important;
+}
+
+.kaiako-result-item.is-correct {
+	color: #10b981;
+}
+
+.kaiako-result-item.is-incorrect {
+	color: #ef4444;
+}
+
+.kaiako-answer-item {
+	font-size: 0.84rem;
+	color: rgba(42, 38, 34, 0.85);
+	margin-top: 0.25rem !important;
+	margin-bottom: 1.35rem !important;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-question-item {
+	color: #f5f5f4;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-result-item.is-correct {
+	color: #34d399;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-result-item.is-incorrect {
+	color: #f87171;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-answer-item {
+	color: rgba(245, 245, 244, 0.85);
 }
 
 .kaiako-bubble .math,
@@ -851,6 +1120,55 @@
 	color: #ffffff;
 }
 
+.kaiako-shell.kaiako-locked .kaiako-md pre,
+.kaiako-shell.kaiako-locked .kaiako-bubble pre,
+.kaiako-shell.kaiako-locked .kaiako-mcq pre {
+	background: rgba(0, 0, 0, 0.45) !important;
+	border: 1px solid rgba(255, 255, 255, 0.14) !important;
+	color: #f5f5f4 !important;
+	scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-md pre::-webkit-scrollbar-thumb,
+.kaiako-shell.kaiako-locked .kaiako-bubble pre::-webkit-scrollbar-thumb,
+.kaiako-shell.kaiako-locked .kaiako-mcq pre::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.25);
+}
+
+.kaiako-shell.kaiako-locked .kaiako-md :not(pre) > code,
+.kaiako-shell.kaiako-locked .kaiako-bubble :not(pre) > code,
+.kaiako-shell.kaiako-locked .kaiako-mcq :not(pre) > code {
+	background: rgba(255, 255, 255, 0.12);
+	color: #f5f5f4;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-md .math-block,
+.kaiako-shell.kaiako-locked .kaiako-md div.math,
+.kaiako-shell.kaiako-locked .kaiako-md .MathJax_Display,
+.kaiako-shell.kaiako-locked .kaiako-md .katex-display,
+.kaiako-shell.kaiako-locked .kaiako-md mjx-container[display="true"],
+.kaiako-shell.kaiako-locked .kaiako-bubble .math-block,
+.kaiako-shell.kaiako-locked .kaiako-bubble div.math,
+.kaiako-shell.kaiako-locked .kaiako-bubble .MathJax_Display,
+.kaiako-shell.kaiako-locked .kaiako-bubble .katex-display,
+.kaiako-shell.kaiako-locked .kaiako-bubble mjx-container[display="true"],
+.kaiako-shell.kaiako-locked .kaiako-mcq .math-block,
+.kaiako-shell.kaiako-locked .kaiako-mcq div.math,
+.kaiako-shell.kaiako-locked .kaiako-mcq .MathJax_Display,
+.kaiako-shell.kaiako-locked .kaiako-mcq .katex-display,
+.kaiako-shell.kaiako-locked .kaiako-mcq mjx-container[display="true"] {
+	scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-md .math-block::-webkit-scrollbar-thumb,
+.kaiako-shell.kaiako-locked .kaiako-md mjx-container[display="true"]::-webkit-scrollbar-thumb,
+.kaiako-shell.kaiako-locked .kaiako-bubble .math-block::-webkit-scrollbar-thumb,
+.kaiako-shell.kaiako-locked .kaiako-bubble mjx-container[display="true"]::-webkit-scrollbar-thumb,
+.kaiako-shell.kaiako-locked .kaiako-mcq .math-block::-webkit-scrollbar-thumb,
+.kaiako-shell.kaiako-locked .kaiako-mcq mjx-container[display="true"]::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.25);
+}
+
 .kaiako-shell.kaiako-locked .kaiako-prompt-model-menu {
 	background: rgba(255, 255, 255, 0.08);
 	border-color: rgba(255, 255, 255, 0.22);
@@ -887,12 +1205,12 @@
 	backdrop-filter: blur(14px) saturate(1.12);
 	-webkit-backdrop-filter: blur(14px) saturate(1.12);
 	box-shadow: 0 0.8rem 1.8rem rgba(42, 38, 34, 0.18);
-	animation: kaiako-glass-in 0.38s var(--kaiako-pop-ease) both;
-	transition-timing-function: var(--kaiako-pop-ease);
+	animation: kaiako-glass-in 0.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+	transition: none;
 }
 
 @keyframes kaiako-glass-in {
-	from { opacity: 0; transform: translateY(-0.45rem) scale(0.98); }
+	from { opacity: 0; transform: translateY(-0.25rem) scale(0.99); }
 	to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
@@ -915,7 +1233,8 @@
 	box-sizing: border-box;
 }
 
-.kaiako-root .kaiako-archive-pop button.kaiako-archive-session {
+.kaiako-root .kaiako-archive-pop button.kaiako-archive-session,
+.kaiako-root .kaiako-archive-pop button.kaiako-archive-session.is-current {
 	display: block;
 	justify-content: flex-start;
 	align-items: stretch;
@@ -929,8 +1248,8 @@
 	border: none;
 	border-bottom: 1px solid rgba(42, 38, 34, 0.16);
 	border-radius: 0.45rem;
-	background: transparent;
-	background-color: transparent;
+	background: transparent !important;
+	background-color: transparent !important;
 	box-shadow: none;
 	-webkit-appearance: none;
 	appearance: none;
@@ -942,16 +1261,20 @@
 	overflow: hidden;
 }
 
-.kaiako-root .kaiako-archive-pop button.kaiako-archive-session:hover {
-	background: rgba(42, 38, 34, 0.06);
-	background-color: rgba(42, 38, 34, 0.06);
+.kaiako-root .kaiako-archive-pop button.kaiako-archive-session:hover,
+.kaiako-root .kaiako-archive-pop button.kaiako-archive-session.is-current:hover {
+	background: rgba(42, 38, 34, 0.06) !important;
+	background-color: rgba(42, 38, 34, 0.06) !important;
 }
 
 .kaiako-root .kaiako-archive-pop button.kaiako-archive-session:focus,
 .kaiako-root .kaiako-archive-pop button.kaiako-archive-session:focus-visible,
-.kaiako-root .kaiako-archive-pop button.kaiako-archive-session:active {
-	background: transparent;
-	background-color: transparent;
+.kaiako-root .kaiako-archive-pop button.kaiako-archive-session:active,
+.kaiako-root .kaiako-archive-pop button.kaiako-archive-session.is-current:focus,
+.kaiako-root .kaiako-archive-pop button.kaiako-archive-session.is-current:focus-visible,
+.kaiako-root .kaiako-archive-pop button.kaiako-archive-session.is-current:active {
+	background: transparent !important;
+	background-color: transparent !important;
 	box-shadow: none;
 }
 
@@ -964,44 +1287,26 @@
 	border-bottom: none;
 }
 
-.kaiako-root .kaiako-archive-pop button.kaiako-archive-session.is-current {
-	background: rgba(42, 38, 34, 0.72);
-	background-color: rgba(42, 38, 34, 0.72);
-	color: rgba(255, 255, 252, 0.95);
-	border-bottom-color: transparent;
-}
-
-.kaiako-root .kaiako-archive-pop button.kaiako-archive-session.is-current:hover,
-.kaiako-root .kaiako-archive-pop button.kaiako-archive-session.is-current:focus,
-.kaiako-root .kaiako-archive-pop button.kaiako-archive-session.is-current:focus-visible,
-.kaiako-root .kaiako-archive-pop button.kaiako-archive-session.is-current:active {
-	background: rgba(42, 38, 34, 0.8);
-	background-color: rgba(42, 38, 34, 0.8);
-	color: rgba(255, 255, 252, 0.95);
-}
-
-.kaiako-shell.kaiako-locked .kaiako-archive-pop button.kaiako-archive-session {
+.kaiako-shell.kaiako-locked .kaiako-archive-pop button.kaiako-archive-session,
+.kaiako-shell.kaiako-locked .kaiako-archive-pop button.kaiako-archive-session.is-current {
+	background: transparent !important;
+	background-color: transparent !important;
 	border-bottom-color: rgba(255, 255, 255, 0.16);
 	color: #ffffff;
 }
 
-.kaiako-shell.kaiako-locked .kaiako-archive-pop button.kaiako-archive-session:hover {
-	background: rgba(255, 255, 255, 0.08);
-	background-color: rgba(255, 255, 255, 0.08);
+.kaiako-shell.kaiako-locked .kaiako-archive-pop button.kaiako-archive-session:hover,
+.kaiako-shell.kaiako-locked .kaiako-archive-pop button.kaiako-archive-session.is-current:hover {
+	background: rgba(255, 255, 255, 0.08) !important;
+	background-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 .kaiako-shell.kaiako-locked .kaiako-archive-pop button.kaiako-archive-session:focus-visible {
 	outline-color: rgba(255, 255, 255, 0.36);
 }
 
-.kaiako-shell.kaiako-locked .kaiako-archive-pop button.kaiako-archive-session.is-current,
-.kaiako-shell.kaiako-locked .kaiako-archive-pop button.kaiako-archive-session.is-current:hover,
-.kaiako-shell.kaiako-locked .kaiako-archive-pop button.kaiako-archive-session.is-current:focus,
-.kaiako-shell.kaiako-locked .kaiako-archive-pop button.kaiako-archive-session.is-current:focus-visible,
-.kaiako-shell.kaiako-locked .kaiako-archive-pop button.kaiako-archive-session.is-current:active {
-	background: rgba(255, 255, 255, 0.18);
-	background-color: rgba(255, 255, 255, 0.18);
-	color: #ffffff;
+.kaiako-root .kaiako-archive-pop button.kaiako-archive-session.is-current .kaiako-archive-title {
+	font-weight: 600;
 }
 
 .kaiako-archive-title {
@@ -1295,12 +1600,41 @@
 	border-color: var(--text-error);
 }
 
+.kaiako-settings-modal .setting-item.kaiako-settings-about-you {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0.65rem;
+}
+
+.kaiako-settings-modal .setting-item.kaiako-settings-about-you .setting-item-info {
+	width: 100%;
+	margin-right: 0;
+	margin-bottom: 0;
+}
+
+.kaiako-settings-modal .setting-item.kaiako-settings-about-you .setting-item-description {
+	max-width: 100%;
+}
+
+.kaiako-settings-modal .setting-item.kaiako-settings-about-you .setting-item-control {
+	width: 100% !important;
+	max-width: 100% !important;
+	display: flex !important;
+	justify-content: stretch !important;
+	flex: 1 1 100% !important;
+}
+
 .kaiako-settings-modal .kaiako-user-about {
-	width: min(100%, 28rem);
-	min-height: 5rem;
-	padding: 0.55rem 0.65rem;
+	width: 100% !important;
+	min-width: 100% !important;
+	max-width: 100% !important;
+	box-sizing: border-box !important;
+	min-height: 5.5rem;
+	padding: 0.65rem 0.75rem;
 	border-radius: 0.6rem;
-	resize: vertical;
+	resize: vertical !important;
+	line-height: 1.45;
 }
 
 .kaiako-settings-modal .setting-item,
@@ -1843,27 +2177,32 @@
 }
 
 .kaiako-internet-wrap.kaiako-tip::after {
-	left: 0;
-	transform: translateY(0.12rem);
+	left: 50%;
+	transform: translateX(-50%) translateY(0.12rem);
+	color: #ffd60a;
+	border: 1px solid rgba(255, 214, 10, 0.22);
 }
 
 .kaiako-internet-wrap.kaiako-tip:hover::after,
 .kaiako-internet-wrap.kaiako-tip:focus-visible::after,
 .kaiako-internet-wrap.kaiako-tip:focus-within::after {
 	opacity: 1;
-	transform: translateY(0);
+	transform: translateX(-50%) translateY(0);
 }
 
 .kaiako-internet-wrap.is-idle::after {
-	padding-left: 1.28rem;
+	padding-left: 1.25rem;
+	padding-right: 0.55rem;
 	background-color: rgba(18, 16, 14, 0.94);
-	background-image: radial-gradient(circle at 0.58rem 50%, rgba(255, 69, 58, 0.3) 0%, rgba(255, 69, 58, 0.08) 0.4rem, transparent 0.6rem);
+	background-image: radial-gradient(circle at 0.58rem 50%, rgba(255, 214, 10, 0.18) 0%, rgba(255, 214, 10, 0.05) 0.35rem, transparent 0.55rem);
+	border: 1px solid rgba(255, 214, 10, 0.22);
+	color: #ffd60a;
 }
 
 .kaiako-internet-wrap.is-idle::before {
 	content: "";
 	position: absolute;
-	left: 0.58rem;
+	left: calc(50% - 0.88rem);
 	bottom: calc(100% + 0.4rem + 0.63rem);
 	z-index: 21;
 	width: 0.34rem;
@@ -1871,8 +2210,8 @@
 	margin-left: -0.17rem;
 	margin-bottom: -0.17rem;
 	border-radius: 50%;
-	background: #ff453a;
-	box-shadow: 0 0 5px 1.5px rgba(255, 69, 58, 0.95), 0 0 10px 3px rgba(239, 68, 68, 0.5);
+	background: #ffd60a;
+	box-shadow: 0 0 3px 0.5px rgba(255, 214, 10, 0.65), 0 0 5px 1px rgba(234, 179, 8, 0.25);
 	opacity: 0;
 	pointer-events: none;
 	transform: translateY(0.12rem);
@@ -1884,24 +2223,6 @@
 .kaiako-internet-wrap.is-idle:focus-within::before {
 	opacity: 1;
 	transform: translateY(0);
-	animation: kaiako-idle-dot-pulse 2s ease-in-out infinite;
-}
-
-@keyframes kaiako-idle-dot-pulse {
-	0%, 100% {
-		box-shadow: 0 0 4px 1px rgba(255, 69, 58, 0.95), 0 0 8px 2px rgba(239, 68, 68, 0.5);
-	}
-	50% {
-		box-shadow: 0 0 7px 2px rgba(255, 69, 58, 1), 0 0 14px 4px rgba(239, 68, 68, 0.8);
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.kaiako-internet-wrap.is-idle:hover::before,
-	.kaiako-internet-wrap.is-idle:focus-visible::before,
-	.kaiako-internet-wrap.is-idle:focus-within::before {
-		animation: none;
-	}
 }
 
 .kaiako-prompt-input {
@@ -2451,6 +2772,152 @@
 	z-index: 10;
 }
 
+/* Harness offline overlay */
+.kaiako-offline-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 100;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: clamp(1.2rem, 6%, 2.2rem);
+	backdrop-filter: blur(0.56rem) saturate(1.2);
+	-webkit-backdrop-filter: blur(0.56rem) saturate(1.2);
+	background: rgba(255, 255, 252, 0.56);
+	animation: kaiako-fade-in 0.3s ease-out;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-offline-overlay {
+	background: rgba(13, 13, 13, 0.56);
+}
+
+.kaiako-offline-card {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	gap: 1.25rem;
+	max-width: 22rem;
+	margin: 0 auto;
+}
+
+.kaiako-offline-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: rgba(42, 38, 34, 0.82);
+}
+
+.kaiako-shell.kaiako-locked .kaiako-offline-icon {
+	color: rgba(255, 255, 252, 0.92);
+	filter: drop-shadow(0 0.2rem 0.8rem rgba(0, 0, 0, 0.5));
+}
+
+.kaiako-offline-icon-svg {
+	display: block;
+	width: 2.25rem;
+	height: 2.25rem;
+}
+
+.kaiako-offline-heading {
+	font-family: "LT Superior Serif", Georgia, serif;
+	font-size: clamp(1.5rem, 5.5vw, 2.05rem);
+	font-weight: 400;
+	line-height: 1.25;
+	letter-spacing: -0.02em;
+	text-align: center;
+	margin: 0;
+	color: #2a2622;
+}
+
+.kaiako-offline-heading span {
+	display: block;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-offline-heading {
+	color: #fffffc;
+	text-shadow: 0 0.2rem 1.4rem rgba(0, 0, 0, 0.6);
+}
+
+.kaiako-offline-btn {
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.55rem;
+	padding: 0.62rem 1.45rem;
+	border-radius: 0.75rem;
+	font-family: var(--kaiako-font-ui, inherit);
+	font-size: 0.9rem;
+	font-weight: 500;
+	border: 1px solid #2a2622;
+	background: #2a2622;
+	color: #fffffc;
+	box-shadow: 0 0.25rem 0.8rem rgba(42, 38, 34, 0.16);
+	transition: background-color 0.24s cubic-bezier(0.075, 0.82, 0.165, 1),
+	            color 0.24s cubic-bezier(0.075, 0.82, 0.165, 1),
+	            border-color 0.24s cubic-bezier(0.075, 0.82, 0.165, 1),
+	            box-shadow 0.24s cubic-bezier(0.075, 0.82, 0.165, 1),
+	            transform 0.24s cubic-bezier(0.075, 0.82, 0.165, 1);
+	transition-timing-function: cubic-bezier(0.075, 0.82, 0.165, 1);
+}
+
+.kaiako-offline-btn:hover,
+.kaiako-offline-btn:focus-visible {
+	background: #fffffc;
+	color: #2a2622;
+	border-color: #2a2622;
+	box-shadow: 0 0.25rem 1rem rgba(42, 38, 34, 0.22);
+	transform: none;
+}
+
+.kaiako-offline-btn:active {
+	transform: scale(0.98);
+}
+
+.kaiako-offline-btn-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.85;
+	transition: transform 0.32s cubic-bezier(0.075, 0.82, 0.165, 1),
+	            opacity 0.24s cubic-bezier(0.075, 0.82, 0.165, 1);
+	transition-timing-function: cubic-bezier(0.075, 0.82, 0.165, 1);
+}
+
+.kaiako-offline-btn:hover .kaiako-offline-btn-icon,
+.kaiako-offline-btn:focus-visible .kaiako-offline-btn-icon {
+	opacity: 1;
+	transform: rotate(45deg);
+}
+
+.kaiako-offline-btn-icon svg {
+	display: block;
+	width: 1rem;
+	height: 1rem;
+	stroke: currentColor;
+}
+
+.kaiako-shell.kaiako-locked .kaiako-offline-btn {
+	background: #fffffc;
+	color: #12100e;
+	border: 1px solid #fffffc;
+	box-shadow: 0 0.4rem 1.4rem rgba(0, 0, 0, 0.5);
+}
+
+.kaiako-shell.kaiako-locked .kaiako-offline-btn:hover,
+.kaiako-shell.kaiako-locked .kaiako-offline-btn:focus-visible {
+	background: #12100e;
+	color: #fffffc;
+	border-color: #fffffc;
+	box-shadow: 0 0.4rem 1.4rem rgba(0, 0, 0, 0.7);
+	transform: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.kaiako-archive-pop,
 	.kaiako-prompt-menu,
@@ -2464,7 +2931,10 @@
 	.kaiako-mcq,
 	.kaiako-mcq-indicator,
 	.kaiako-mcq-dot,
-	.kaiako-mcq-text {
+	.kaiako-mcq-text,
+	.kaiako-offline-overlay,
+	.kaiako-offline-btn,
+	.kaiako-offline-btn-icon {
 		animation: none;
 		transition: none;
 	}

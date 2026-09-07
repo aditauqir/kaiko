@@ -25,18 +25,22 @@ import {
 	patchSessionFrontmatter,
 	type SessionTurn,
 } from "./note-writer";
-import { KaiakoSettingsModal } from "./settings-modal";
+import { KaiakoSettingsModal, type TabId } from "./settings-modal";
 import { mountPromptBar, type PromptBarHandle } from "./prompt-bar";
 import { mountApprovalCard } from "./approval-card";
 import { extractGoal, hasStoredGoal } from "./goal";
 import { buildHarnessPrompt, resolvePhase } from "./harness-prompt";
 import { estimateAbility, type ScoredItem } from "./knowledge";
 import {
+	deduplicateQuestions,
+	formatMcqPrompt,
 	formatMcqQuestion,
 	formatMcqRecord,
+	formatMcqResult,
 	normalizeMcqMarkdown,
 	splitMcq,
 	stripMcqFences,
+	stripUnrenderableComments,
 	type McqItem,
 } from "./mcq";
 import { sanitizeMathForRender } from "./math-safe";
@@ -126,6 +130,10 @@ export class KaiakoView extends ItemView {
 		this.piVersion = result.version;
 	}
 
+	private hasHarness(): boolean {
+		return this.piFound && Boolean(this.plugin.config.dataFolder);
+	}
+
 	private async transitionTo(next: Step): Promise<void> {
 		this.rootEl.addClass("kaiako-fade-out");
 		await sleep(220);
@@ -156,7 +164,12 @@ export class KaiakoView extends ItemView {
 		else if (this.step === "api-key") this.renderApiKey(shell);
 		else if (this.step === "identity") this.renderIdentity(shell);
 		else if (this.step === "setup") void this.renderSetup(shell);
-		else this.renderChat(shell);
+		else {
+			this.renderChat(shell);
+			if (!this.hasHarness()) {
+				this.renderHarnessOfflineOverlay(shell);
+			}
+		}
 	}
 
 	private renderProvider(shell: HTMLElement): void {
@@ -497,6 +510,32 @@ export class KaiakoView extends ItemView {
 		});
 	}
 
+	private renderHarnessOfflineOverlay(shell: HTMLElement): void {
+		const overlay = shell.createDiv({ cls: "kaiako-offline-overlay" });
+		overlay.setAttribute("role", "alert");
+		overlay.setAttribute("aria-live", "polite");
+
+		const card = overlay.createDiv({ cls: "kaiako-offline-card" });
+
+		const iconWrap = card.createDiv({ cls: "kaiako-offline-icon" });
+		mountUnlinkedIcon(iconWrap);
+
+		const heading = card.createEl("h2", { cls: "kaiako-offline-heading" });
+		heading.createSpan({ text: "Harness offline" });
+		heading.createSpan({ text: "activate it" });
+
+		const btn = card.createEl("button", {
+			cls: "kaiako-offline-btn",
+			attr: { type: "button", "aria-label": "Configure Pi harness in settings" },
+		});
+		setIcon(btn.createSpan({ cls: "kaiako-offline-btn-icon" }), "settings");
+		btn.createSpan({ text: "Settings" });
+
+		this.registerDomEvent(btn, "click", () => {
+			void this.openSettings("pi");
+		});
+	}
+
 	private toggleArchive(chat: HTMLElement): void {
 		this.archiveOpen = !this.archiveOpen;
 		if (this.archiveOpen) {
@@ -542,20 +581,82 @@ export class KaiakoView extends ItemView {
 		return pop;
 	}
 
-	private async openSettings(): Promise<void> {
+	private async openSettings(tab?: TabId): Promise<void> {
 		await this.activity.flush();
-		new KaiakoSettingsModal(this.app, this.plugin, () => {
-			if (!this.plugin.config.onboarded) this.reopenOnboarding();
-			else this.render();
-		}).open();
+		new KaiakoSettingsModal(
+			this.app,
+			this.plugin,
+			() => {
+				void (async () => {
+					await this.refreshPi();
+					if (!this.plugin.config.onboarded) this.reopenOnboarding();
+					else this.render();
+				})();
+			},
+			tab,
+		).open();
+	}
+
+	private async renderTurn(
+		session: SessionMeta | null,
+		turn: SessionTurn,
+		index: number,
+		turns: SessionTurn[],
+		liked: boolean,
+		greet?: HTMLElement,
+		messages?: HTMLElement,
+		visibleMarkdown?: string,
+	): Promise<HTMLElement | null> {
+		if (visibleMarkdown === undefined) {
+			const pendingQuestion = session?.pendingMcq ? formatMcqQuestion(session.pendingMcq) : "";
+			const withoutPendingQuestion = pendingQuestion ? turn.markdown.split(pendingQuestion).join("").trim() : turn.markdown;
+			visibleMarkdown = stripTopicMarker(stripMcqFences(withoutPendingQuestion));
+		}
+		if (!visibleMarkdown.trim()) return null;
+
+		const wrap = document.createElement("div");
+		wrap.className = `kaiako-turn kaiako-turn--${turn.role}`;
+		wrap.dataset.turnIndex = String(index);
+		wrap.dataset.turnRole = turn.role;
+		wrap.dataset.turnMd = visibleMarkdown;
+		wrap.dataset.liked = String(liked);
+
+		const article = wrap.createDiv({ cls: "kaiako-md" });
+		await MarkdownRenderer.render(
+			this.app,
+			sanitizeMathForRender(visibleMarkdown),
+			article,
+			session?.filePath ?? "",
+			this,
+		);
+		article.querySelectorAll("p").forEach((p) => {
+			const text = p.textContent?.trim() ?? "";
+			if (/^(?:#{1,6}\s*)?(?:\*\*)?Question:?/i.test(text)) {
+				p.addClass("kaiako-question-item");
+			} else if (/^Result:\s*(?:Correct|Incorrect)/i.test(text)) {
+				p.addClass("kaiako-result-item");
+				if (/^Result:\s*Correct/i.test(text)) {
+					p.addClass("is-correct");
+				} else {
+					p.addClass("is-incorrect");
+				}
+			} else if (/^Correct answer:/i.test(text)) {
+				p.addClass("kaiako-answer-item");
+			}
+		});
+		if (turn.role === "assistant" && messages) {
+			this.mountTurnActions(wrap, messages, session, turns, index, liked, greet);
+		}
+		return wrap;
 	}
 
 	private async fillMessages(messages: HTMLElement, greet?: HTMLElement): Promise<void> {
 		let session = this.cfg().sessions.find((item) => item.id === this.cfg().currentSessionId) ?? null;
 		const body = await readSessionBody(this.app, session);
-		messages.empty();
 		if (!body) {
 			greet?.addClass("kaiako-chat-greet--hidden");
+			messages.empty();
+			delete messages.dataset.sessionId;
 			const empty = messages.createDiv({ cls: "kaiako-empty kaiako-topic-start" });
 			empty.createEl("h2", { cls: "kaiako-empty-title", text: "Starting a topic" });
 			empty.createEl("p", {
@@ -564,6 +665,15 @@ export class KaiakoView extends ItemView {
 			});
 			return;
 		}
+
+		messages.querySelector(".kaiako-empty")?.remove();
+
+		const currentSessionId = session?.id ?? "";
+		if (messages.dataset.sessionId !== currentSessionId) {
+			messages.empty();
+			messages.dataset.sessionId = currentSessionId;
+		}
+
 		if (session) session = await this.hydrateSession(session);
 		if (session) this.activity.begin(session);
 		if (session?.topicGenerated === true) greet?.removeClass("kaiako-chat-greet--hidden");
@@ -572,21 +682,25 @@ export class KaiakoView extends ItemView {
 		if (session) {
 			let pendingMcq = session.pendingMcq;
 			const normalizedTurns = turns.map((turn) => {
-				if (turn.role !== "assistant") return turn;
+				if (turn.role !== "assistant") {
+					return { ...turn, markdown: deduplicateQuestions(stripUnrenderableComments(turn.markdown)) };
+				}
 				const parsed = splitMcq(turn.markdown);
-				if (!parsed.mcq) return { ...turn, markdown: normalizeMcqMarkdown(turn.markdown) };
+				if (!parsed.mcq) {
+					return { ...turn, markdown: deduplicateQuestions(stripUnrenderableComments(normalizeMcqMarkdown(turn.markdown))) };
+				}
 
 				if (legacyMcqHasAnswer(parsed.prose)) {
 					pendingMcq = undefined;
-					const prelude = legacyMcqPrelude(parsed.prose);
+					const prelude = stripUnrenderableComments(legacyMcqPrelude(parsed.prose));
 					const result = formatMcqRecord(parsed.mcq, "", false, legacyMcqWasCorrect(parsed.prose));
-					return { ...turn, markdown: [prelude, result].filter(Boolean).join("\n\n") };
+					return { ...turn, markdown: deduplicateQuestions([prelude, result].filter(Boolean).join("\n\n")) };
 				}
 
 				pendingMcq = parsed.mcq;
 				return {
 					...turn,
-					markdown: [parsed.prose, formatMcqQuestion(parsed.mcq)].filter(Boolean).join("\n\n"),
+					markdown: deduplicateQuestions([parsed.prose, formatMcqQuestion(parsed.mcq)].filter(Boolean).join("\n\n")),
 				};
 			});
 			const turnsChanged = normalizedTurns.some((turn, index) => turn.markdown !== turns[index]?.markdown);
@@ -603,30 +717,85 @@ export class KaiakoView extends ItemView {
 				await this.saveSession(session);
 			}
 		}
+
 		const liked = new Set(session?.likedTurns ?? []);
+		const existingTurnEls = Array.from(messages.querySelectorAll<HTMLElement>(":scope > .kaiako-turn"));
+
+		for (let i = turns.length; i < existingTurnEls.length; i += 1) {
+			existingTurnEls[i]?.remove();
+		}
+
 		for (let index = 0; index < turns.length; index += 1) {
 			const turn = turns[index];
 			if (!turn) continue;
 			const pendingQuestion = session?.pendingMcq ? formatMcqQuestion(session.pendingMcq) : "";
-			const withoutPendingQuestion = pendingQuestion ? turn.markdown.replace(pendingQuestion, "").trim() : turn.markdown;
+			const withoutPendingQuestion = pendingQuestion ? turn.markdown.split(pendingQuestion).join("").trim() : turn.markdown;
 			const visibleMarkdown = stripTopicMarker(stripMcqFences(withoutPendingQuestion));
 			if (!visibleMarkdown.trim()) continue;
-			const wrap = messages.createDiv({ cls: `kaiako-turn kaiako-turn--${turn.role}` });
-			const article = wrap.createDiv({ cls: "kaiako-md" });
-			await MarkdownRenderer.render(
-				this.app,
-				sanitizeMathForRender(visibleMarkdown),
-				article,
-				session?.filePath ?? "",
-				this,
-			);
-			if (turn.role === "assistant") {
-				this.mountTurnActions(wrap, messages, session, turns, index, liked.has(index), greet);
+
+			const isLiked = liked.has(index);
+			const existingEl = existingTurnEls[index];
+
+			if (existingEl && existingEl.dataset.turnMd === visibleMarkdown && existingEl.dataset.turnRole === turn.role) {
+				if (existingEl.dataset.liked !== String(isLiked)) {
+					existingEl.dataset.liked = String(isLiked);
+					const likeBtn = existingEl.querySelector<HTMLButtonElement>(".kaiako-turn-like");
+					if (likeBtn) {
+						likeBtn.toggleClass("is-liked", isLiked);
+						likeBtn.setAttr("aria-pressed", isLiked ? "true" : "false");
+					}
+				}
+				continue;
+			}
+
+			const wrap = await this.renderTurn(session, turn, index, turns, isLiked, greet, messages, visibleMarkdown);
+			if (!wrap) {
+				existingEl?.remove();
+				continue;
+			}
+
+			if (existingEl) {
+				existingEl.replaceWith(wrap);
+			} else {
+				const streamEl = messages.querySelector(".kaiako-stream");
+				const mcqAnchor = messages.querySelector(".kaiako-mcq-root");
+				if (turn.role === "assistant" && streamEl) {
+					streamEl.replaceWith(wrap);
+				} else if (mcqAnchor) {
+					messages.insertBefore(wrap, mcqAnchor);
+				} else if (streamEl) {
+					messages.insertBefore(wrap, streamEl);
+				} else {
+					messages.appendChild(wrap);
+				}
 			}
 		}
-		if (session?.pendingMcq) {
-			this.mountMcq(messages, session, session.pendingMcq, greet, resolvePhase(session) === "diagnostic");
+
+		if (!this.stream) {
+			messages.querySelectorAll(".kaiako-stream").forEach((el) => el.remove());
 		}
+
+		const existingMcq = messages.querySelector<HTMLElement>(".kaiako-mcq-root");
+		if (session?.pendingMcq) {
+			if (existingMcq?.dataset.mcqId !== session.pendingMcq.id) {
+				existingMcq?.remove();
+				this.mountMcq(messages, session, session.pendingMcq, greet, resolvePhase(session) === "diagnostic");
+			}
+		} else {
+			existingMcq?.remove();
+		}
+
+		this.scrollToBottom(messages);
+	}
+
+	private scrollToBottom(el: HTMLElement): void {
+		el.scrollTop = el.scrollHeight;
+		requestAnimationFrame(() => {
+			el.scrollTop = el.scrollHeight;
+		});
+		window.setTimeout(() => {
+			el.scrollTop = el.scrollHeight;
+		}, 50);
 	}
 
 	private mountTurnActions(
@@ -700,6 +869,8 @@ export class KaiakoView extends ItemView {
 		await this.saveSession(session);
 		btn.toggleClass("is-liked", liked.has(index));
 		btn.setAttr("aria-pressed", liked.has(index) ? "true" : "false");
+		const wrap = btn.closest<HTMLElement>(".kaiako-turn");
+		if (wrap) wrap.dataset.liked = String(liked.has(index));
 	}
 
 	private async restartFromTurn(
@@ -738,6 +909,7 @@ export class KaiakoView extends ItemView {
 		});
 		await this.saveSession(session);
 		await this.fillMessages(messages, greet);
+		this.scrollToBottom(messages);
 
 		const started = await this.plugin.pi.ensure(this.app, this.cfg(), session.id);
 		if (!started.ok) {
@@ -772,6 +944,7 @@ export class KaiakoView extends ItemView {
 
 		await appendToSession(this.app, session, `**You:** ${text}`);
 		await this.fillMessages(messages, greet);
+		this.scrollToBottom(messages);
 
 		const started = await this.plugin.pi.ensure(this.app, this.cfg(), session.id);
 		if (!started.ok) {
@@ -795,9 +968,15 @@ export class KaiakoView extends ItemView {
 		},
 	): Promise<void> {
 		const live = messages.createDiv({ cls: "kaiako-bubble kaiako-bubble--ai kaiako-stream" });
-		const stream = mountStreamReveal(live, { transform: (raw) => stripTopicMarker(stripMcqFences(raw)) });
+		const stream = mountStreamReveal(live, {
+			transform: (raw) => stripTopicMarker(stripMcqFences(raw)),
+			onTick: () => {
+				this.scrollToBottom(messages);
+			},
+		});
 		this.stream = stream;
 		this.toolsLive = false;
+		this.scrollToBottom(messages);
 		const phase = resolvePhase(session);
 		const presentation = orbForPhase(phase);
 		this.promptBar?.setOrb(presentation.state, presentation.label);
@@ -816,7 +995,10 @@ export class KaiakoView extends ItemView {
 				if (!this.toolsLive) this.promptBar?.setOrb("composing");
 				// Bind every Pi delta to this turn's reveal instance. This keeps the
 				// typewriter animation alive if a later render starts another turn.
-				if (this.stream === stream) stream.push(chunk);
+				if (this.stream === stream) {
+					stream.push(chunk);
+					this.scrollToBottom(messages);
+				}
 			},
 			onDone: (full, usage) => {
 				void this.finishAssistantTurn(messages, session, stream, full, greet, usage);
@@ -880,11 +1062,12 @@ export class KaiakoView extends ItemView {
 			greet?.setText(topic);
 			greet?.removeClass("kaiako-chat-greet--hidden");
 		}
-		const toWrite = stripTopicMarker((mcq ? prose : full).trim());
+		const toWrite = stripUnrenderableComments(stripTopicMarker((mcq ? prose : full).trim()));
 
 		if (mcq && phase === "need_goal") {
 			if (toWrite) await appendToSession(this.app, session, toWrite);
 			await this.fillMessages(messages, greet);
+			this.scrollToBottom(messages);
 			this.promptBar?.setOrb(null);
 			this.promptBar?.setInternetActive(false);
 			await this.runPiTurn(
@@ -904,6 +1087,7 @@ export class KaiakoView extends ItemView {
 			session = { ...session, pendingMcq: mcq };
 			await this.saveSession(session);
 			await this.fillMessages(messages, greet);
+			this.scrollToBottom(messages);
 			this.promptBar?.setInternetActive(false);
 			this.promptBar?.setOrb(null);
 			return;
@@ -911,6 +1095,7 @@ export class KaiakoView extends ItemView {
 
 		if (toWrite) await appendToSession(this.app, session, toWrite);
 		await this.fillMessages(messages, greet);
+		this.scrollToBottom(messages);
 		this.promptBar?.setOrb(null);
 		this.promptBar?.setInternetActive(false);
 	}
@@ -934,7 +1119,8 @@ export class KaiakoView extends ItemView {
 			component: this,
 			onSubmit: pick,
 		});
-		messages.scrollTop = messages.scrollHeight;
+		box.dataset.mcqId = item.id;
+		this.scrollToBottom(messages);
 	}
 
 	private async answerMcq(
@@ -947,6 +1133,9 @@ export class KaiakoView extends ItemView {
 		greet?: HTMLElement,
 		scoreIt = true,
 	): Promise<void> {
+		if (document.activeElement instanceof HTMLElement && box.contains(document.activeElement)) {
+			document.activeElement.blur();
+		}
 		const correct = !dontKnow && chosen === item.correct;
 		const record: ScoredItem = {
 			id: item.id,
@@ -956,6 +1145,13 @@ export class KaiakoView extends ItemView {
 			dontKnow,
 			chosen: dontKnow ? "dont_know" : chosen,
 		};
+		const body = await readSessionBody(this.app, session);
+		const questionLine = formatMcqQuestion(item);
+		const alreadyHasQuestion = body.trim().endsWith(questionLine) || body.includes(questionLine);
+		const toAppend = alreadyHasQuestion
+			? formatMcqResult(item, correct)
+			: formatMcqRecord(item, chosen, dontKnow, correct);
+
 		if (scoreIt) {
 			const items = [...(session.diagnosticItems ?? []), record];
 			const estimate = estimateAbility(items, this.cfg().baseJump);
@@ -967,9 +1163,10 @@ export class KaiakoView extends ItemView {
 			});
 			session = await this.clearPendingMcq(session);
 			await this.saveSession(session);
-			await appendToSession(this.app, session, formatMcqRecord(item, chosen, dontKnow, correct));
+			await appendToSession(this.app, session, toAppend);
 			box.remove();
 			await this.fillMessages(messages, greet);
+			this.scrollToBottom(messages);
 			const reply = dontKnow
 				? `I don't know. Item ${item.id} was a miss.`
 				: `I chose "${chosen}". That is ${correct ? "correct" : "incorrect"}.`;
@@ -984,9 +1181,10 @@ export class KaiakoView extends ItemView {
 
 		session = await this.clearPendingMcq(session);
 		await this.saveSession(session);
-		await appendToSession(this.app, session, formatMcqRecord(item, chosen, dontKnow, correct));
+		await appendToSession(this.app, session, toAppend);
 		box.remove();
 		await this.fillMessages(messages, greet);
+		this.scrollToBottom(messages);
 		const reply = dontKnow
 			? `I don't know.`
 			: `I chose "${chosen}". That is ${correct ? "correct" : "incorrect"}.`;
@@ -1119,7 +1317,7 @@ function buildResumeContext(body: string, currentLearnerText: string): string {
 		})
 		.map((turn) => {
 			const role = turn.role === "user" ? "Learner" : "Kaiako";
-			const content = stripTopicMarker(turn.markdown).trim();
+			const content = stripUnrenderableComments(stripTopicMarker(turn.markdown)).trim();
 			return content ? `${role}: ${content}` : "";
 		})
 		.filter(Boolean);
@@ -1216,4 +1414,23 @@ function shortPath(p: string): string {
 	const parts = p.split(/[/\\]/);
 	if (parts.length <= 2) return p;
 	return `…/${parts.slice(-2).join("/")}`;
+}
+
+const UNLINKED_ICON_PATH =
+	"M198.63,57.37a32,32,0,0,0-45.19-.06L141.79,69.52a8,8,0,0,1-11.58-11l11.72-12.29a1.59,1.59,0,0,1,.13-.13,48,48,0,0,1,67.88,67.88,1.59,1.59,0,0,1-.13.13l-12.29,11.72a8,8,0,0,1-11-11.58l12.21-11.65A32,32,0,0,0,198.63,57.37ZM114.21,186.48l-11.65,12.21a32,32,0,0,1-45.25-45.25l12.21-11.65a8,8,0,0,0-11-11.58L46.19,141.93a1.59,1.59,0,0,0-.13.13,48,48,0,0,0,67.88,67.88,1.59,1.59,0,0,0,.13-.13l11.72-12.29a8,8,0,1,0-11.58-11ZM216,152H192a8,8,0,0,0,0,16h24a8,8,0,0,0,0-16ZM40,104H64a8,8,0,0,0,0-16H40a8,8,0,0,0,0,16Zm120,80a8,8,0,0,0-8,8v24a8,8,0,0,0,16,0V192A8,8,0,0,0,160,184ZM96,72a8,8,0,0,0,8-8V40a8,8,0,0,0-16,0V64A8,8,0,0,0,96,72Z";
+
+function mountUnlinkedIcon(parent: HTMLElement): SVGSVGElement {
+	const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+	svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+	svg.setAttribute("viewBox", "0 0 256 256");
+	svg.setAttribute("fill", "currentColor");
+	svg.setAttribute("aria-hidden", "true");
+	svg.setAttribute("class", "kaiako-offline-icon-svg");
+
+	const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+	path.setAttribute("d", UNLINKED_ICON_PATH);
+	path.setAttribute("fill", "currentColor");
+	svg.appendChild(path);
+	parent.appendChild(svg);
+	return svg;
 }

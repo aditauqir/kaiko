@@ -106,7 +106,10 @@ export function mountPromptBar(
 		event.preventDefault();
 		send();
 	});
-	host.registerDomEvent(sendBtn, "click", () => send());
+	host.registerDomEvent(sendBtn, "click", (event) => {
+		event.preventDefault();
+		send();
+	});
 	host.registerDomEvent(window, "resize", () => resize());
 
 	syncGlobeTip();

@@ -1,7 +1,7 @@
 import { Notice, TFile, normalizePath, type App } from "obsidian";
 import { limitTopicWords, newId, type DiagnosticItemRecord, type SessionMeta, type SessionPhase } from "./config";
 import type { KnowledgeEstimate } from "./knowledge";
-import { parseMcqBlock, type McqItem } from "./mcq";
+import { deduplicateQuestions, parseMcqBlock, stripUnrenderableComments, type McqItem } from "./mcq";
 
 export function sessionHash(): string {
 	return newId();
@@ -42,7 +42,10 @@ export function stripYouPrefix(markdown: string): string {
 }
 
 export function serializeSessionTurns(turns: SessionTurn[]): string {
-	return turns.map((turn) => turn.markdown.trim()).filter(Boolean).join("\n\n");
+	return turns
+		.map((turn) => deduplicateQuestions(stripUnrenderableComments(turn.markdown)))
+		.filter(Boolean)
+		.join("\n\n");
 }
 
 export async function replaceSessionTurns(
@@ -84,13 +87,12 @@ export async function appendToSession(
 		new Notice("Session note is missing from the vault.");
 		return null;
 	}
+	const clean = deduplicateQuestions(stripUnrenderableComments(markdown));
+	if (!clean.trim()) return file;
 	await app.vault.process(file, (data) => {
 		const sep = data.trim().length > 0 ? "\n\n" : "";
-		return data + sep + markdown;
+		return deduplicateQuestions(data + sep + clean);
 	});
-	if (app.workspace.getActiveFile()?.path !== file.path) {
-		await app.workspace.getLeaf(false).openFile(file);
-	}
 	return file;
 }
 

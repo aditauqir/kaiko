@@ -118,7 +118,7 @@ export class PiHost {
 		const key = activeKey(config);
 		const provider = key ? piProviderFlag(key.provider) : undefined;
 		const model = key ? getProvider(key.provider)?.model : undefined;
-		const args = ["--mode", "rpc", "--session-dir", sessionDir];
+		const args = ["--mode", "rpc", "--session-dir", sessionDir, "--approve"];
 		if (sessionId) args.push("--session-id", sessionId);
 		if (provider) args.push("--provider", provider);
 		if (model) args.push("--model", model);
@@ -269,8 +269,11 @@ function toolNameOf(event: Record<string, unknown>): string {
 
 export async function writeNetSearchConfig(config: KaiakoConfig): Promise<void> {
 	if (!config.dataFolder) return;
+	const autoApprove = config.netSearchAutoApprove ?? true;
 	const payload = {
 		provider: "exa",
+		workflow: autoApprove ? "auto-summary" : "summary-review",
+		curator: !autoApprove,
 		webSearch: { enabled: config.netSearch },
 		tools: {
 			webSearch: { enabled: config.netSearch },
@@ -278,14 +281,21 @@ export async function writeNetSearchConfig(config: KaiakoConfig): Promise<void> 
 			getSearchContent: { enabled: config.netSearch },
 		},
 	};
-	const local = path.join(config.dataFolder, "web-search.json");
-	await fs.promises.mkdir(config.dataFolder, { recursive: true });
-	await fs.promises.writeFile(local, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
-	const homePi = path.join(os.homedir(), ".pi", "web-search.json");
-	try {
-		await fs.promises.mkdir(path.dirname(homePi), { recursive: true });
-		await fs.promises.writeFile(homePi, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
-	} catch {
-		/* best-effort */
+	const content = `${JSON.stringify(payload, null, 2)}\n`;
+
+	const targets = [
+		path.join(config.dataFolder, "web-search.json"),
+		path.join(config.dataFolder, "pi", "web-search.json"),
+		path.join(os.homedir(), ".pi", "agent", "web-search.json"),
+		path.join(os.homedir(), ".pi", "web-search.json"),
+	];
+
+	for (const target of targets) {
+		try {
+			await fs.promises.mkdir(path.dirname(target), { recursive: true });
+			await fs.promises.writeFile(target, content, "utf-8");
+		} catch {
+			/* best-effort for external user paths */
+		}
 	}
 }

@@ -56,6 +56,7 @@ export interface KaiakoConfig {
 	requestLimit: number | null;
 	autoStartPi: boolean;
 	netSearch: boolean;
+	netSearchAutoApprove: boolean;
 	baseJump: BaseJumpLevel;
 	lockedIn: boolean;
 	sessions: SessionMeta[];
@@ -77,6 +78,7 @@ export const DEFAULT_CONFIG: KaiakoConfig = {
 	requestLimit: null,
 	autoStartPi: false,
 	netSearch: false,
+	netSearchAutoApprove: true,
 	baseJump: "medium",
 	lockedIn: false,
 	sessions: [],
@@ -99,6 +101,10 @@ export function mergeConfig(raw: Partial<KaiakoConfig> | null | undefined): Kaia
 			typeof raw?.requestLimit === "number" && Number.isFinite(raw.requestLimit) && raw.requestLimit >= 0
 				? raw.requestLimit
 				: null,
+		netSearchAutoApprove:
+			typeof raw?.netSearchAutoApprove === "boolean"
+				? raw.netSearchAutoApprove
+				: DEFAULT_CONFIG.netSearchAutoApprove,
 		baseJump:
 			raw?.baseJump === "low" || raw?.baseJump === "high" || raw?.baseJump === "medium"
 				? raw.baseJump

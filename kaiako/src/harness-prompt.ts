@@ -86,7 +86,7 @@ export function buildHarnessPrompt(
 		} else {
 			lines.push(
 				`Ask at most ${MAX_DIAGNOSTIC_ITEMS} diagnostic MCQs total.`,
-				"Emit exactly one clean Markdown MCQ per turn, never a code fence. Wrap only the MCQ in <!-- kaiako-mcq --> and <!-- /kaiako-mcq --> markers; put the correct option only in an invisible <!-- correct: B --> marker, never in visible text. Then STOP and wait.",
+				"Emit exactly one clean Markdown MCQ per turn, never a code fence. Wrap the MCQ in <!-- kaiako-mcq --> and <!-- /kaiako-mcq --> markers. Inside the block, write the question, the 4 options (- A. ..., - B. ..., - C. ..., - D. ...), and place the correct option marker (<!-- correct: B -->) on the final line inside the block, right before <!-- /kaiako-mcq -->. Never put <!-- correct: ... --> or control markers in prose or before the question. Then STOP and wait.",
 				`Suggested item difficulty b (logits): ${nextB.toFixed(2)}`,
 				"Do not teach the topic yet.",
 			);

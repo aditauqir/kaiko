@@ -80,6 +80,7 @@ export default class KaiakoPlugin extends Plugin {
 	async saveConfig(partial?: Partial<KaiakoConfig>): Promise<void> {
 		const prevAuto = this.config.autoStartPi;
 		const prevNet = this.config.netSearch;
+		const prevApprove = this.config.netSearchAutoApprove;
 		const prevModel = this.config.activeModelId;
 		const prevFolder = this.config.dataFolder;
 		this.config = mergeConfig({ ...this.config, ...(partial ?? {}) });
@@ -88,6 +89,7 @@ export default class KaiakoPlugin extends Plugin {
 		if (
 			this.config.autoStartPi !== prevAuto ||
 			this.config.netSearch !== prevNet ||
+			this.config.netSearchAutoApprove !== prevApprove ||
 			this.config.dataFolder !== prevFolder
 		) {
 			void this.pi.sync(this.app, this.config);

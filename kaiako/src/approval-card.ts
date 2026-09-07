@@ -26,6 +26,9 @@ export function mountApprovalCard(parent: HTMLElement, item: McqItem, options: A
 		const answer = chosen.trim();
 		if (!dontKnow && !answer) return;
 		locked = true;
+		if (document.activeElement instanceof HTMLElement && root.contains(document.activeElement)) {
+			document.activeElement.blur();
+		}
 		options.onSubmit(answer, dontKnow);
 	};
 
@@ -85,7 +88,9 @@ export function mountApprovalCard(parent: HTMLElement, item: McqItem, options: A
 				options.component,
 			);
 			optionButtons.push({ button: btn, id: option.id });
-			options.component.registerDomEvent(btn, "click", () => {
+			options.component.registerDomEvent(btn, "click", (event: MouseEvent) => {
+				event.preventDefault();
+				event.stopPropagation();
 				if (locked) return;
 				selected = option.id;
 				custom = "";
@@ -133,22 +138,36 @@ export function mountApprovalCard(parent: HTMLElement, item: McqItem, options: A
 			text: "Skip",
 			attr: { type: "button" },
 		});
-		options.component.registerDomEvent(skip, "click", () => submit("", true));
+		options.component.registerDomEvent(skip, "click", (event: MouseEvent) => {
+			event.preventDefault();
+			event.stopPropagation();
+			submit("", true);
+		});
 		answerButton = actions.createEl("button", {
 			cls: "kaiako-mcq-action kaiako-mcq-answer",
 			text: "Answer",
 			attr: { type: "button", disabled: "true" },
 		});
-		options.component.registerDomEvent(answerButton, "click", () => submit(custom || selected, false));
+		options.component.registerDomEvent(answerButton, "click", (event: MouseEvent) => {
+			event.preventDefault();
+			event.stopPropagation();
+			submit(custom || selected, false);
+		});
 		sync();
 
-		options.component.registerDomEvent(dismiss, "click", () => {
+		options.component.registerDomEvent(dismiss, "click", (event: MouseEvent) => {
+			event.preventDefault();
+			event.stopPropagation();
 			card.remove();
 			reopen.hidden = false;
 		});
 	};
 
-	options.component.registerDomEvent(reopen, "click", buildCard);
+	options.component.registerDomEvent(reopen, "click", (event: MouseEvent) => {
+		event.preventDefault();
+		event.stopPropagation();
+		buildCard();
+	});
 	buildCard();
 	return root;
 }

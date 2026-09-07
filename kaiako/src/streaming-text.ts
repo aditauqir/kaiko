@@ -10,7 +10,7 @@ export interface StreamRevealHandle {
 
 export function mountStreamReveal(
 	el: HTMLElement,
-	opts?: { transform?: (raw: string) => string },
+	opts?: { transform?: (raw: string) => string; onTick?: () => void },
 ): StreamRevealHandle {
 	let raw = "";
 	let shown = 0;
@@ -39,6 +39,7 @@ export function mountStreamReveal(
 		if (shown < target) {
 			shown = Math.min(target, shown + CHARS_PER_TICK);
 			paint();
+			opts?.onTick?.();
 		}
 		if (finishing && shown >= target) {
 			if (timer !== null) {
@@ -47,6 +48,7 @@ export function mountStreamReveal(
 			}
 			caret.addClass("kaiako-caret--steady");
 			prose.removeAttribute("aria-live");
+			opts?.onTick?.();
 			resolveFinish?.();
 			resolveFinish = null;
 			return;
@@ -54,6 +56,7 @@ export function mountStreamReveal(
 		if (!finishing && shown >= target && timer !== null) {
 			window.clearInterval(timer);
 			timer = null;
+			opts?.onTick?.();
 		}
 	};
 

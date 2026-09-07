@@ -12,7 +12,7 @@ import {
 	type ApiKeyCheckState,
 } from "./api-key-check";
 
-type TabId = "keys" | "user-info" | "sessions" | "folder" | "pi" | "base-jump" | "export-data";
+export type TabId = "keys" | "user-info" | "sessions" | "folder" | "pi" | "base-jump" | "export-data";
 
 const TABS: { id: TabId; label: string; icon: string; group: string; search: string }[] = [
 	{ id: "keys", label: "API keys", icon: "key", group: "Account", search: "api keys providers models" },
@@ -40,10 +40,11 @@ export class KaiakoSettingsModal extends Modal {
 	private keyCheckSeq = new Map<string, number>();
 	private keyCheckInFlight = new Set<string>();
 
-	constructor(app: App, plugin: KaiakoPlugin, onChange: () => void) {
+	constructor(app: App, plugin: KaiakoPlugin, onChange: () => void, initialTab: TabId = "keys") {
 		super(app);
 		this.plugin = plugin;
 		this.onChange = onChange;
+		this.tab = initialTab;
 	}
 
 	async onOpen(): Promise<void> {
@@ -58,10 +59,9 @@ export class KaiakoSettingsModal extends Modal {
 	}
 
 	onClose(): void {
-		const shouldRefreshHost = this.hostRefreshPending;
 		this.closed = true;
 		this.contentEl.empty();
-		if (shouldRefreshHost) this.onChange();
+		this.onChange();
 	}
 
 	private markHostRefresh(): void {
@@ -438,18 +438,21 @@ export class KaiakoSettingsModal extends Modal {
 				});
 			});
 
-		new Setting(pane)
+		const aboutSetting = new Setting(pane)
+			.setClass("kaiako-settings-about-you")
 			.setName("About you")
 			.setDesc("A little context Kaiako can use when it helps answer your questions.")
 			.addTextArea((text) => {
 				text.setValue(this.plugin.config.about);
 				text.setPlaceholder("Tell Kaiako about your goals, background, or interests...");
 				text.inputEl.addClass("kaiako-user-about");
+				text.inputEl.rows = 4;
 				text.onChange((value) => {
 					this.markHostRefresh();
 					void this.plugin.saveConfig({ about: value.trim() });
 				});
 			});
+		aboutSetting.settingEl.addClass("kaiako-settings-about-you");
 	}
 
 	private renderSessions(pane: HTMLElement): void {
@@ -569,7 +572,20 @@ export class KaiakoSettingsModal extends Modal {
 				toggle.setValue(this.plugin.config.netSearch);
 				toggle.setDisabled(!this.piFound);
 				toggle.onChange((value) => {
-					void this.plugin.saveConfig({ netSearch: value }).then(() => this.markHostRefresh());
+					void this.plugin.saveConfig({ netSearch: value }).then(() => {
+						this.markHostRefresh();
+						this.render();
+					});
+				});
+			});
+		new Setting(pane)
+			.setName("Auto-approve web search")
+			.setDesc("Automatically approve search results and generate summaries without opening the browser curator.")
+			.addToggle((toggle) => {
+				toggle.setValue(this.plugin.config.netSearchAutoApprove);
+				toggle.setDisabled(!this.piFound || !this.plugin.config.netSearch);
+				toggle.onChange((value) => {
+					void this.plugin.saveConfig({ netSearchAutoApprove: value }).then(() => this.markHostRefresh());
 				});
 			});
 		new Setting(pane)
@@ -644,6 +660,7 @@ export class KaiakoSettingsModal extends Modal {
 			this.piVersion = detected.version;
 			if (!detected.found) throw new Error("Pi was installed, but the pi command is not available on PATH.");
 			await this.plugin.pi.linkHarness(this.plugin.config);
+			this.markHostRefresh();
 			new Notice("Pi harness installed and linked.");
 		} catch (error) {
 			new Notice(`Could not link Pi harness: ${error instanceof Error ? error.message : "unknown error"}`);
@@ -662,6 +679,7 @@ export class KaiakoSettingsModal extends Modal {
 			this.piFound = false;
 			this.piVersion = null;
 			await this.plugin.saveConfig({ autoStartPi: false, netSearch: false });
+			this.markHostRefresh();
 			new Notice("Pi harness unlinked and deleted.");
 		} catch (error) {
 			new Notice(`Could not delete Pi harness: ${error instanceof Error ? error.message : "unknown error"}`);
