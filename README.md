@@ -41,6 +41,7 @@ Unlike generic AI study chat plugins that either lecture continuously or generat
 - [Supported Model Providers](#supported-model-providers)
 - [Repository Structure](#repository-structure)
 - [Development Protocol](#development-protocol)
+- [Credits](#credits)
 - [License](#license)
 
 ---
@@ -353,6 +354,12 @@ To develop or contribute to Kaiko:
 2. Work on the `feature` branch.
 3. Verify builds with `npm run build` in `kaiako/`.
 4. Package production releases using `npm run package`.
+
+---
+
+## Credits
+
+- [Eero Alvar](https://github.com/amosblomqvist) — For foundational design and early architecture contributions to the learning system.
 
 ---
 
