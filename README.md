@@ -9,6 +9,10 @@
 
 Unlike generic AI study chat plugins that either lecture continuously or generate isolated quizzes, Kaiko integrates a local [Pi coding agent](https://github.com/earendil-works/pi-coding-agent) daemon with a formal **Rasch 1-Parameter Logistic Item Response Theory (IRT)** psychometric engine. It actively diagnoses conceptual understanding through calibrated multiple-choice diagnostics (CAT), derives your latent ability ($\theta$), and scaffolds personalized instruction directly into your local Markdown notes with zero data loss.
 
+<p align="center">
+  <img src="assets/demo-instruction-view.png" alt="Kaiko Sidebar Companion with Synchronized Obsidian Vault Note" width="100%">
+</p>
+
 ---
 
 ## Table of Contents
@@ -79,12 +83,20 @@ Traditional AI study assistants either lecture passively or quiz aimlessly. Kaik
 ### 1. Goal Capture (`need_goal`)
 Before lecturing or testing begins, Kaiko ensures a concrete capability goal is established (e.g., *"understand Docker networking"*, *"derive backpropagation"*, *"build a React hook"*). If you request a **smoke test** or **diagnostic**, Kaiko immediately captures the topic and launches the diagnostic assessment.
 
+<p align="center">
+  <img src="assets/demo-goal-capture.png" alt="Goal Capture with Serif Typography and Personalized Greeting" width="75%">
+</p>
+
 ### 2. Adaptive Diagnostic (`diagnostic`)
 Once a goal is confirmed, Kaiko launches a Computerized Adaptive Test (CAT):
 - Emits clean, single-question multiple-choice prompts targeting your estimated ability.
 - Dynamically adjusts question difficulty in logit units ($b_i$) based on previous responses.
 - Computes your latent ability ($\theta$) and maps it to a 0–100 point scale.
 - Halts adaptively when standard error $\text{SE}(\theta) \le 0.50$, near-floor failure is detected, or the 10-question ceiling is reached.
+
+<p align="center">
+  <img src="assets/demo-adaptive-diagnostic.png" alt="Adaptive Diagnostic Assessment in Obsidian" width="100%">
+</p>
 
 ### 3. Scaffolded Instruction (`teaching`)
 Rather than teaching at your diagnostic limit, Kaiko applies a **Base Jump** offset to start instruction below your ceiling:
@@ -262,6 +274,10 @@ npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 
 Open Kaiko settings via the gear icon in the top header or through **Obsidian Settings → Kaiko**:
 
+<p align="center">
+  <img src="assets/demo-harness-settings.png" alt="Pi Agent Harness Configuration and Settings" width="90%">
+</p>
+
 - **Account**:
   - Configure and test API keys for all providers.
   - Customize learner identity, experience level, and pronouns.
@@ -295,6 +311,11 @@ learn/
 ├── README.md                      # Primary project documentation
 ├── project_desc                   # Resume guide and engineering highlights
 ├── project_desc.md                # Formatted markdown resume guide
+├── assets/                        # Documentation screenshots and demo media
+│   ├── demo-instruction-view.png  # Live instruction and synchronized note
+│   ├── demo-adaptive-diagnostic.png # Computerized adaptive test (CAT)
+│   ├── demo-goal-capture.png      # Serif typography and goal capture
+│   └── demo-harness-settings.png  # Pi agent harness settings panel
 ├── releases/                      # Packaged release distribution files
 │   ├── Kaiko-1.0.0.zip            # Obsidian plugin zip bundle
 │   ├── main.js                    # Compiled plugin bundle

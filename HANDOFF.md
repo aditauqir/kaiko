@@ -63,6 +63,7 @@ New work is always enqueued at the tail. The next job is always the head of **Re
 | 049 | 2026-09-07 | [Harness offline overlay](handoffs/049-2026-09-07-harness-offline-overlay.md) | Added frosted gaussian blur overlay (0.56 blur & backdrop opacity) for unlinked/offline harness with unlinked chain symbol, centered two-line heading, and inverted-color Settings button with cubic-bezier(0.075, 0.82, 0.165, 1) easing and no upward translation. |
 | 050 | 2026-09-07 | [Fix offline overlay glitch and update heading text](handoffs/050-2026-09-07-fix-offline-overlay-glitch-and-update-text.md) | Eliminated offline overlay rendering glitch and multi-second delay via negative CLI lookup caching, synchronous configuration state, non-destructive overlay mounting, and removal of transparent initial animation; updated heading to "AI Agent is offline, active me!". |
 | 051 | 2026-09-07 | [Smoke test MCQ repair and release packaging](handoffs/051-2026-09-07-smoke-test-mcq-fix-and-release.md) | Fixed smoke test MCQ suppression loop and relaxed goal parsing regexes; created project_desc and project_desc.md for resume drafting; updated README.md with GitHub origin and dual installation paths; packaged Kaiko-1.0.0.zip release assets. |
+| 052 | 2026-09-07 | [README demo photos integration](handoffs/052-2026-09-07-readme-demo-photos.md) | Added demo screenshots to assets/ and embedded them into README.md across hero overview, goal capture, adaptive diagnostic, and harness settings. |
 
 ## Ready (FIFO — next task is the first row)
 
