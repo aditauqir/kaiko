@@ -1,6 +1,7 @@
 import { Notice, TFile, normalizePath, type App } from "obsidian";
 import { limitTopicWords, newId, type DiagnosticItemRecord, type SessionMeta, type SessionPhase } from "./config";
 import type { KnowledgeEstimate } from "./knowledge";
+import { parseMcqBlock, type McqItem } from "./mcq";
 
 export function sessionHash(): string {
 	return newId();
@@ -59,8 +60,11 @@ export async function replaceSessionTurns(
 		const fmMatch = data.match(/^---\n[\s\S]*?\n---\n/);
 		const front = fmMatch ? fmMatch[0] : "";
 		const afterFm = fmMatch ? data.slice(fmMatch[0].length) : data;
-		const headerMatch = afterFm.match(/^(# [^\n]+\n\n_Kaiako session `[^`]+` · [^\n]+_\n*)/);
-		const header = (headerMatch?.[1] ?? "").replace(/\n+$/, "\n\n");
+		const headerMatch = afterFm.match(/^(# [^\n]+\n\n_Kaiako session(?: `[^`]+`)? · [^\n]+_\n*)/);
+		const rawHeader = headerMatch?.[1] ?? "";
+		const header = rawHeader
+			.replace(/^# ([^\n]+)-[a-f0-9]{8}(?=\n)/m, "# $1")
+			.replace(/\n+$/, "\n\n");
 		const body = nextBody ? `${nextBody}\n` : "";
 		return `${front}${header}${body}`;
 	});
@@ -90,11 +94,31 @@ export async function appendToSession(
 	return file;
 }
 
+const HASH_SUFFIX_REGEX = /^(.*)-[a-f0-9]{8}\.md$/i;
+
+export function generateUniqueNotePath(app: App, title: string, excludePath?: string): string {
+	const topic = limitTopicWords(title);
+	const safe = topic.replace(/[\\/:#*?"<>|]/g, "-").trim() || "Chat";
+	const basePath = normalizePath(`Kaiako/${safe}.md`);
+	const existing = app.vault.getAbstractFileByPath(basePath);
+	if (!existing || (excludePath && existing.path === excludePath)) {
+		return basePath;
+	}
+	let index = 2;
+	while (true) {
+		const candidate = normalizePath(`Kaiako/${safe} ${index}.md`);
+		const found = app.vault.getAbstractFileByPath(candidate);
+		if (!found || (excludePath && found.path === excludePath)) {
+			return candidate;
+		}
+		index++;
+	}
+}
+
 export async function createSessionNote(app: App, title: string): Promise<SessionMeta> {
 	const id = sessionHash();
 	const topic = limitTopicWords(title);
-	const safe = topic.replace(/[\\/:#*?"<>|]/g, "-").trim() || "Chat";
-	const path = normalizePath(`Kaiako/${safe}-${id.slice(0, 8)}.md`);
+	const path = generateUniqueNotePath(app, topic);
 	const folder = path.split("/").slice(0, -1).join("/");
 	if (folder && !app.vault.getAbstractFileByPath(folder)) {
 		await app.vault.createFolder(folder);
@@ -111,11 +135,12 @@ export async function createSessionNote(app: App, title: string): Promise<Sessio
 		"kaiako_teaching_entry: null",
 		"kaiako_active_seconds: 0",
 		"kaiako_last_interaction_at: null",
+		"kaiako_pending_mcq: null",
 		"---",
 		"",
 		`# ${topic}`,
 		"",
-		`_Kaiako session \`${id.slice(0, 8)}\` · ${new Date().toLocaleString()}_`,
+		`_Kaiako session · ${new Date().toLocaleString()}_`,
 		"",
 	].join("\n");
 
@@ -141,7 +166,18 @@ export async function createSessionNote(app: App, title: string): Promise<Sessio
 }
 
 export async function openSessionNote(app: App, session: SessionMeta): Promise<void> {
-	const file = app.vault.getAbstractFileByPath(session.filePath);
+	let file = app.vault.getAbstractFileByPath(session.filePath);
+	if (!(file instanceof TFile)) {
+		const match = session.filePath.match(HASH_SUFFIX_REGEX);
+		const base = match?.[1];
+		if (base) {
+			const cleanCandidate = normalizePath(`${base}.md`);
+			const altFile = app.vault.getAbstractFileByPath(cleanCandidate);
+			if (altFile instanceof TFile) {
+				file = altFile;
+			}
+		}
+	}
 	if (file instanceof TFile) {
 		await ensureKaiakoSessionClass(app, file);
 		await app.workspace.getLeaf(false).openFile(file);
@@ -152,13 +188,27 @@ export async function openSessionNote(app: App, session: SessionMeta): Promise<v
 
 export async function readSessionBody(app: App, session: SessionMeta | null): Promise<string> {
 	if (!session) return "";
-	const file = app.vault.getAbstractFileByPath(session.filePath);
+	let file = app.vault.getAbstractFileByPath(session.filePath);
+	if (!(file instanceof TFile)) {
+		const match = session.filePath.match(HASH_SUFFIX_REGEX);
+		const base = match?.[1];
+		if (base) {
+			const cleanCandidate = normalizePath(`${base}.md`);
+			const altFile = app.vault.getAbstractFileByPath(cleanCandidate);
+			if (altFile instanceof TFile) {
+				file = altFile;
+			}
+		}
+	}
 	if (!(file instanceof TFile)) return "";
 	await ensureKaiakoSessionClass(app, file);
 	const text = await app.vault.read(file);
 	const body = text.replace(/^---\n[\s\S]*?\n---\n*/, "").trim();
 	const sessionMarker = escapeRegExp(`Kaiako session \`${session.id.slice(0, 8)}\``);
-	const scaffold = new RegExp("^# [^\\n]+\\s*\\n\\s*_" + sessionMarker + " · [^\\n]+_\\s*", "i");
+	const scaffold = new RegExp(
+		"^# [^\\n]+\\s*\\n\\s*(?:_" + sessionMarker + " · [^\\n]+_|_Kaiako session · [^\\n]+_|_Kaiako session[^\\n]*_)?\\s*",
+		"i",
+	);
 	return body.replace(scaffold, "").trim();
 }
 
@@ -238,6 +288,7 @@ export function harnessFromFrontmatter(fields: Record<string, string>): Partial<
 	const accuracy = parseNullableNumber(fields.kaiako_accuracy);
 	const activeSeconds = parseNullableNumber(fields.kaiako_active_seconds);
 	const lastInteractionAt = parseNullableNumber(fields.kaiako_last_interaction_at);
+	const pendingMcq = parsePendingMcq(fields.kaiako_pending_mcq);
 	if (score != null) out.knowledgeScore = score;
 	if (theta != null) out.knowledgeTheta = theta;
 	if (se != null) out.knowledgeSe = se;
@@ -245,6 +296,7 @@ export function harnessFromFrontmatter(fields: Record<string, string>): Partial<
 	if (accuracy != null) out.accuracy = accuracy;
 	if (activeSeconds != null && activeSeconds >= 0) out.activeSeconds = activeSeconds;
 	if (lastInteractionAt != null && lastInteractionAt > 0) out.lastInteractionAt = lastInteractionAt;
+	if (pendingMcq) out.pendingMcq = pendingMcq;
 	if (fields.kaiako_diagnostic) {
 		try {
 			const parsed = JSON.parse(unquote(fields.kaiako_diagnostic)) as DiagnosticItemRecord[];
@@ -266,20 +318,100 @@ export function harnessFromFrontmatter(fields: Record<string, string>): Partial<
 	return out;
 }
 
-export async function updateSessionTopic(app: App, session: SessionMeta, title: string): Promise<void> {
-	const file = app.vault.getAbstractFileByPath(session.filePath);
-	if (!(file instanceof TFile)) return;
+export async function updateSessionTopic(
+	app: App,
+	session: SessionMeta,
+	title: string,
+): Promise<string | null> {
+	let file = app.vault.getAbstractFileByPath(session.filePath);
+	if (!(file instanceof TFile)) {
+		const match = session.filePath.match(HASH_SUFFIX_REGEX);
+		const base = match?.[1];
+		if (base) {
+			const cleanCandidate = normalizePath(`${base}.md`);
+			const altFile = app.vault.getAbstractFileByPath(cleanCandidate);
+			if (altFile instanceof TFile) {
+				file = altFile;
+			}
+		}
+	}
+	if (!(file instanceof TFile)) return null;
+
 	const topic = limitTopicWords(title);
 	await app.vault.process(file, (data) => {
 		const withFrontmatter = data.replace(
 			/^kaiako_topic:\s*.*$/m,
 			`kaiako_topic: ${JSON.stringify(topic)}`,
 		);
-		return withFrontmatter.replace(
-			/^# [^\n]+(?=\n\n_Kaiako session `[^`]+` · )/m,
+		const withCleanScaffold = withFrontmatter.replace(
+			/^# [^\n]+(?=\n\n_Kaiako session(?: `[^`]+`)? · )/m,
 			`# ${topic}`,
 		);
+		return withCleanScaffold.replace(/^# ([^\n]+)-[a-f0-9]{8}(?=\n)/m, "# $1");
 	});
+
+	const newPath = generateUniqueNotePath(app, topic, file.path);
+	if (newPath !== file.path) {
+		try {
+			await app.vault.rename(file, newPath);
+			return newPath;
+		} catch (e) {
+			console.error("Failed to rename session note on topic update:", e);
+		}
+	}
+	return file.path;
+}
+
+export async function normalizeSessionNotePath(
+	app: App,
+	session: SessionMeta,
+): Promise<SessionMeta> {
+	const match = session.filePath.match(HASH_SUFFIX_REGEX);
+	const base = match?.[1];
+	if (!base) return session;
+
+	const file = app.vault.getAbstractFileByPath(session.filePath);
+	if (!(file instanceof TFile)) {
+		const cleanCandidate = normalizePath(`${base}.md`);
+		const altFile = app.vault.getAbstractFileByPath(cleanCandidate);
+		if (altFile instanceof TFile) {
+			const cleanTitle = session.title.replace(/-[a-f0-9]{8}$/i, "");
+			return { ...session, title: cleanTitle, filePath: altFile.path };
+		}
+		return session;
+	}
+
+	const rawBase = base.split("/").pop() || session.title;
+	const candidateTitle =
+		session.topicGenerated && session.title && !session.title.match(/-[a-f0-9]{8}$/i)
+			? session.title
+			: rawBase;
+
+	const targetPath = generateUniqueNotePath(app, candidateTitle, file.path);
+	let nextPath = file.path;
+	if (targetPath !== file.path) {
+		try {
+			await app.vault.rename(file, targetPath);
+			nextPath = targetPath;
+		} catch (e) {
+			console.error("Failed to rename session note during normalization:", e);
+		}
+	}
+
+	try {
+		await app.vault.process(file, (data) => {
+			return data.replace(/^# ([^\n]+)-[a-f0-9]{8}(?=\n)/m, "# $1");
+		});
+	} catch {
+		/* ignore */
+	}
+
+	const cleanTitle = session.title.replace(/-[a-f0-9]{8}$/i, "");
+	return {
+		...session,
+		title: cleanTitle,
+		filePath: nextPath,
+	};
 }
 
 export async function readSessionHarness(app: App, session: SessionMeta | null): Promise<Partial<SessionMeta>> {
@@ -377,6 +509,16 @@ function parseNullableNumber(value: string | undefined): number | null {
 	if (!value || value.trim() === "null") return null;
 	const parsed = Number(value);
 	return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parsePendingMcq(value: string | undefined): McqItem | null {
+	if (!value || value.trim() === "null") return null;
+	try {
+		const parsed = JSON.parse(unquote(value)) as Record<string, unknown>;
+		return parseMcqBlock(JSON.stringify(parsed));
+	} catch {
+		return null;
+	}
 }
 
 function parseBoolean(value: string | undefined): boolean | null {

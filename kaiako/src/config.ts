@@ -31,6 +31,7 @@ export interface SessionMeta {
 	likedTurns?: number[];
 	activeSeconds?: number;
 	lastInteractionAt?: number;
+	pendingMcq?: import("./mcq").McqItem;
 }
 
 export interface ApiKeyEntry {
@@ -105,7 +106,10 @@ export function mergeConfig(raw: Partial<KaiakoConfig> | null | undefined): Kaia
 		sessions: Array.isArray(raw?.sessions)
 			? raw.sessions.map((session) => ({
 					...session,
-					title: typeof session.title === "string" && session.title.trim() ? session.title.trim() : "New topic",
+					title:
+						typeof session.title === "string" && session.title.trim()
+							? session.title.replace(/-[a-f0-9]{8}$/i, "").trim() || "New topic"
+							: "New topic",
 				}))
 			: [],
 	};

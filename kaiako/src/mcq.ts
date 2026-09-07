@@ -187,13 +187,17 @@ export function formatMcqPrompt(item: McqItem): string {
 	return lines.join("\n");
 }
 
-export function formatMcqRecord(item: McqItem, chosen: string, dontKnow: boolean, correct: boolean): string {
-	const lines = [`**Question:** ${item.stem}`, ""];
-	for (const option of item.options) {
-		const mark = option.id === item.correct ? "✓ " : option.id === chosen ? "✗ " : "";
-		lines.push(`- ${mark}${option.id.toUpperCase()}. ${option.text}`);
-	}
-	if (dontKnow) lines.push("", "_Answer: I don't know_");
-	else lines.push("", `_Answer: ${chosen} · ${correct ? "correct" : "incorrect"}_`);
-	return lines.join("\n");
+export function formatMcqQuestion(item: McqItem): string {
+	return `Question: ${item.stem}`;
+}
+
+export function formatMcqRecord(item: McqItem, _chosen: string, _dontKnow: boolean, correct: boolean): string {
+	const answer = item.options.find((option) => option.id === item.correct);
+	const correctAnswer = answer ? `${answer.id.toUpperCase()}. ${answer.text}` : item.correct.toUpperCase();
+	return [
+		formatMcqQuestion(item),
+		"",
+		`Result: ${correct ? "Correct" : "Incorrect"}`,
+		`Correct answer: ${correctAnswer}`,
+	].join("\n");
 }

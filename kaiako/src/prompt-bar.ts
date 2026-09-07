@@ -37,7 +37,7 @@ export function mountPromptBar(
 	let internetActive = false;
 
 	const internetWrap = controls.createDiv({ cls: "kaiako-tip kaiako-internet-wrap" });
-	const internetBtn = svgIconButton(internetWrap, "Web search", globePath, "kaiako-internet-btn");
+	const internetBtn = svgIconButton(internetWrap, "", globePath, "kaiako-internet-btn");
 	internetBtn.addClass("kaiako-status-btn");
 	internetBtn.disabled = true;
 
@@ -53,14 +53,20 @@ export function mountPromptBar(
 
 	let draft = "";
 
+	let orbActive = false;
+
 	const syncGlobeTip = () => {
+		const isIdle = !internetActive && netSearch;
 		const status = internetActive
 			? "Using tools"
-			: netSearch
-				? "Web search idle"
+			: isIdle
+				? "idle"
 				: "Web search off";
 		internetWrap.setAttr("data-tooltip", status);
-		internetBtn.setAttr("aria-label", status);
+		internetWrap.toggleClass("is-idle", isIdle);
+		internetBtn.toggleClass("is-idle", isIdle);
+		internetBtn.removeAttribute("aria-label");
+		internetWrap.removeAttribute("aria-label");
 	};
 
 	const syncSend = () => {
@@ -101,6 +107,7 @@ export function mountPromptBar(
 		send();
 	});
 	host.registerDomEvent(sendBtn, "click", () => send());
+	host.registerDomEvent(window, "resize", () => resize());
 
 	syncGlobeTip();
 	syncSend();
@@ -113,8 +120,12 @@ export function mountPromptBar(
 			internetBtn.toggleClass("is-searching", on);
 			syncGlobeTip();
 		},
-		setOrb: (state, labelOverride) => orb.setState(state, labelOverride),
+		setOrb: (state, labelOverride) => {
+			orbActive = state !== null;
+			orb.setState(state, labelOverride);
+		},
 		setPhase: (phase) => {
+			if (!orbActive) return;
 			const presentation = orbForPhase(phase);
 			orb.setState(presentation.state, presentation.label);
 		},
@@ -122,9 +133,11 @@ export function mountPromptBar(
 }
 
 function svgIconButton(parent: HTMLElement, label: string, pathD: string, className: string): HTMLButtonElement {
+	const attr: Record<string, string> = { type: "button" };
+	if (label) attr["aria-label"] = label;
 	const btn = parent.createEl("button", {
 		cls: `kaiako-prompt-icon ${className}`,
-		attr: { type: "button", "aria-label": label },
+		attr,
 	});
 	const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
 	svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");

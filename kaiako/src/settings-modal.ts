@@ -473,7 +473,7 @@ export class KaiakoSettingsModal extends Modal {
 			});
 
 		if (sessions.length === 0) {
-			new Setting(pane).setName("No sessions yet").setDesc("Starting a topic creates a hashed markdown note in the vault.");
+			new Setting(pane).setName("No sessions yet").setDesc("Starting a topic creates a markdown note in the vault.");
 			return;
 		}
 		for (const session of sessions) {
@@ -580,7 +580,8 @@ export class KaiakoSettingsModal extends Modal {
 	}
 
 	private renderBaseJump(pane: HTMLElement): void {
-		new Setting(pane).setName("Basal jump").setHeading();
+		const heading = new Setting(pane).setName("Basal jump").setHeading();
+		heading.settingEl.addClass("kaiako-settings-base-jump-heading");
 		const setting = new Setting(pane)
 			.setName("Sensitivity")
 			.setDesc("Determine how much you want to learn from what you already know (automatically adjusted by Pi)");
