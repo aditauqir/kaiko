@@ -130,7 +130,7 @@ Kaiko implements a formal Item Response Theory (IRT) engine (`kaiako/src/knowled
   - **Ceiling Stop**: Maximum of 10 diagnostic items reached.
 
 - **Knowledge Score Conversion**:
-  $$\text{knowledge\_score} = \operatorname{clamp}(50 + 20\theta, 0, 100)$$
+  $$\text{knowledge\_score} = \text{clamp}(50 + 20\theta, 0, 100)$$
 
 ---
 
