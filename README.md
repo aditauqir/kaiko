@@ -182,30 +182,33 @@ The settings modal provides a one-click **Export data** feature generating resea
 
 ### Method 1: Install from GitHub Releases (Recommended)
 
-To install the pre-packaged release:
+Follow these quick steps to install Kaiko in under 1 minute:
 
-1. Visit the official GitHub Releases page:
-   👉 **[https://github.com/aditauqir/kaiko/releases/tag/Kaiko-1.0.0](https://github.com/aditauqir/kaiko/releases/tag/Kaiko-1.0.0)**
-2. Download the release bundle **`Kaiko-1.0.0.zip`** (or download `main.js`, `manifest.json`, and `styles.css` directly).
-3. Open your Obsidian Vault in your file manager and locate the plugins folder:
-   ```bash
-   <Your-Obsidian-Vault>/.obsidian/plugins/
-   ```
-4. Create a folder named `kaiko`:
-   ```bash
-   mkdir -p "<Your-Obsidian-Vault>/.obsidian/plugins/kaiko"
-   ```
-5. Extract `Kaiko-1.0.0.zip` (or copy `main.js`, `manifest.json`, and `styles.css`) into that folder so the directory structure looks like:
-   ```
-   <Your-Obsidian-Vault>/.obsidian/plugins/kaiko/
-   ├── main.js
-   ├── manifest.json
-   └── styles.css
-   ```
-6. Open **Obsidian Settings** → **Community plugins**:
-   - Turn off **Restricted mode** (if enabled).
-   - Click **Reload plugins** (or restart Obsidian).
+1. **Download the release**:
+   Visit the official release page: 👉 **[https://github.com/aditauqir/kaiko/releases/tag/Kaiko-1.0.0](https://github.com/aditauqir/kaiko/releases/tag/Kaiko-1.0.0)**<br>
+   Download **`Kaiko-1.0.0.zip`** from the Assets section (or download `main.js`, `manifest.json`, and `styles.css` individually).
+
+2. **Locate your Obsidian vault plugins directory**:
+   - **macOS**: `~/Documents/<Your-Vault>/.obsidian/plugins/` *(press `Cmd + Shift + .` to show hidden folders in Finder)*
+   - **Windows**: `C:\Users\<Username>\Documents\<Your-Vault>\.obsidian\plugins\`
+   - **Linux**: `/home/<username>/<Your-Vault>/.obsidian/plugins/`
+
+3. **Extract into a `kaiko` folder**:
+   - Inside `.obsidian/plugins/`, create a folder named `kaiko`.
+   - Extract `Kaiko-1.0.0.zip` (or move the 3 files) into this folder so the structure is:
+     ```
+     <Your-Vault>/.obsidian/plugins/kaiko/
+     ├── main.js
+     ├── manifest.json
+     └── styles.css
+     ```
+
+4. **Enable Kaiko in Obsidian**:
+   - Open **Obsidian Settings** (`Cmd + ,` or `Ctrl + ,`) → **Community plugins**.
+   - Ensure **Restricted mode** is turned **OFF**.
+   - Click the refresh circle icon (**Reload plugins**).
    - Find **Kaiko** under *Installed plugins* and toggle it **ON**.
+   - Click the new **graduation cap icon** in Obsidian's left ribbon to start learning!
 
 ---
 
