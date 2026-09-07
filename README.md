@@ -41,7 +41,7 @@ Unlike generic AI study chat plugins that either lecture continuously or generat
 - [Supported Model Providers](#supported-model-providers)
 - [Repository Structure](#repository-structure)
 - [Development Protocol](#development-protocol)
-- [Credits](#credits)
+- [Credits & Attribution](#credits--attribution)
 - [License](#license)
 
 ---
@@ -360,9 +360,10 @@ To develop or contribute to Kaiko:
 
 ---
 
-## Credits
+## Credits & Attribution
 
-- [Eero Alvar](https://github.com/amosblomqvist) — For foundational design and early architecture contributions to the learning system.
+- **Upstream Origin**: Kaiko originated as a fork of [amosblomqvist/learn](https://github.com/amosblomqvist/learn.git) created by [Eero Alvar](https://github.com/amosblomqvist).
+- Special thanks to [Eero Alvar](https://github.com/amosblomqvist) for foundational concepts, initial scaffolding, and early architecture of the learning system.
 
 ---
 

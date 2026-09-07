@@ -1,6 +1,7 @@
 # Kaiko (Kaiako) — Comprehensive Project Description & Resume Guide
 
-> **Repository**: [https://github.com/aditauqir/kaiko.git](https://github.com/aditauqir/kaiko.git)  
+> **Repository**: [https://github.com/aditauqir/kaiko.git](https://github.com/aditauqir/kaiko.git)<br>
+> **Upstream Origin**: Forked from [https://github.com/amosblomqvist/learn.git](https://github.com/amosblomqvist/learn.git) by [Eero Alvar](https://github.com/amosblomqvist)<br>
 > **Release Target**: `Kaiko-1.0.0` (Obsidian Community Plugin)  
 > **Tech Stack**: TypeScript, Node.js, Electron (Obsidian API), Item Response Theory (Rasch 1PL), Newton–Raphson Numerical Optimization, JSON-RPC, esbuild, CSS3 (Glassmorphism & Custom Fluid Typography)
 
