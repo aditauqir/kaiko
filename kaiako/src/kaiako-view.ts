@@ -102,8 +102,11 @@ export class KaiakoView extends ItemView {
 		this.registerDomEvent(this.rootEl, "touchstart", (event) => this.markSessionActivity(event));
 		this.registerDomEvent(document, "pointerdown", (event) => this.dismissArchive(event));
 		this.step = this.plugin.config.onboarded ? "chat" : "provider";
-		await this.refreshPi();
+		this.piFound = Boolean(this.plugin.config.harnessLinked);
 		this.render();
+		void this.refreshPi().then(() => {
+			if (this.step === "chat") this.updateHarnessOverlay();
+		});
 	}
 
 	async onClose(): Promise<void> {
@@ -120,6 +123,27 @@ export class KaiakoView extends ItemView {
 		this.render();
 	}
 
+	setHarnessState(linked: boolean, version: string | null): void {
+		this.piFound = linked;
+		this.piVersion = version;
+		this.updateHarnessOverlay();
+	}
+
+	private updateHarnessOverlay(shell?: HTMLElement): void {
+		const targetShell = shell ?? this.rootEl?.querySelector(".kaiako-shell");
+		if (!(targetShell instanceof HTMLElement)) return;
+		const existingOverlay = targetShell.querySelector(".kaiako-offline-overlay");
+		const needsOverlay = this.step === "chat" && !this.hasHarness();
+
+		if (needsOverlay) {
+			if (!existingOverlay) {
+				this.renderHarnessOfflineOverlay(targetShell);
+			}
+		} else if (existingOverlay) {
+			existingOverlay.remove();
+		}
+	}
+
 	private cfg(): KaiakoConfig {
 		return this.plugin.config;
 	}
@@ -131,7 +155,7 @@ export class KaiakoView extends ItemView {
 	}
 
 	private hasHarness(): boolean {
-		return this.piFound && Boolean(this.plugin.config.dataFolder);
+		return Boolean(this.plugin.config.harnessLinked && this.plugin.config.dataFolder && this.piFound);
 	}
 
 	private async transitionTo(next: Step): Promise<void> {
@@ -404,6 +428,7 @@ export class KaiakoView extends ItemView {
 			await this.plugin.pi.linkHarness(this.cfg());
 			this.piFound = true;
 			this.piVersion = detected.version;
+			await this.plugin.saveConfig({ harnessLinked: true });
 			new Notice("Pi harness installed and linked.");
 		} catch (error) {
 			new Notice(`Could not link Pi harness: ${error instanceof Error ? error.message : "unknown error"}`);
@@ -436,6 +461,7 @@ export class KaiakoView extends ItemView {
 			currentSessionId: session?.id ?? null,
 			apiKey: this.cfg().apiKey,
 			provider: this.cfg().provider,
+			harnessLinked: this.piFound,
 		});
 		new Notice("Kaiako setup saved.");
 		void this.transitionTo("chat");
@@ -521,8 +547,8 @@ export class KaiakoView extends ItemView {
 		mountUnlinkedIcon(iconWrap);
 
 		const heading = card.createEl("h2", { cls: "kaiako-offline-heading" });
-		heading.createSpan({ text: "Harness offline" });
-		heading.createSpan({ text: "activate it" });
+		heading.createSpan({ text: "AI Agent is offline," });
+		heading.createSpan({ text: "active me!" });
 
 		const btn = card.createEl("button", {
 			cls: "kaiako-offline-btn",
@@ -587,11 +613,14 @@ export class KaiakoView extends ItemView {
 			this.app,
 			this.plugin,
 			() => {
-				void (async () => {
-					await this.refreshPi();
-					if (!this.plugin.config.onboarded) this.reopenOnboarding();
-					else this.render();
-				})();
+				if (!this.plugin.config.onboarded) {
+					this.reopenOnboarding();
+				} else {
+					this.updateHarnessOverlay();
+				}
+				void this.refreshPi().then(() => {
+					if (this.step === "chat") this.updateHarnessOverlay();
+				});
 			},
 			tab,
 		).open();

@@ -17,7 +17,7 @@ const pathSep = path.delimiter;
 
 const SAFE_BIN = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
 
-const hitCache = new Map<string, string>();
+const hitCache = new Map<string, string | null>();
 let pathCache: Promise<string> | null = null;
 
 export function forgetResolvedCli(name?: string): void {
@@ -52,14 +52,13 @@ export async function cliEnv(extra: NodeJS.ProcessEnv = {}): Promise<NodeJS.Proc
 
 export async function resolveCli(name: string): Promise<string | null> {
 	if (!SAFE_BIN.test(name)) return null;
-	const cached = hitCache.get(name);
-	if (cached) return cached;
+	if (hitCache.has(name)) return hitCache.get(name) ?? null;
 
 	const found =
 		findInDirs(name, pathDirs(process.env.PATH).concat(commonBinDirs())) ??
 		findInDirs(name, pathDirs(await resolvedPath())) ??
 		(await whichFromLoginShell(name));
-	if (found) hitCache.set(name, found);
+	hitCache.set(name, found);
 	return found;
 }
 

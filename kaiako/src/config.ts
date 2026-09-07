@@ -59,6 +59,7 @@ export interface KaiakoConfig {
 	netSearchAutoApprove: boolean;
 	baseJump: BaseJumpLevel;
 	lockedIn: boolean;
+	harnessLinked: boolean;
 	sessions: SessionMeta[];
 	currentSessionId: string | null;
 }
@@ -81,6 +82,7 @@ export const DEFAULT_CONFIG: KaiakoConfig = {
 	netSearchAutoApprove: true,
 	baseJump: "medium",
 	lockedIn: false,
+	harnessLinked: false,
 	sessions: [],
 	currentSessionId: null,
 };
@@ -93,6 +95,10 @@ export function mergeConfig(raw: Partial<KaiakoConfig> | null | undefined): Kaia
 		...(raw ?? {}),
 		about: typeof raw?.about === "string" ? raw.about : "",
 		apiKeys: Array.isArray(raw?.apiKeys) ? raw.apiKeys : [],
+		harnessLinked:
+			typeof raw?.harnessLinked === "boolean"
+				? raw.harnessLinked
+				: Boolean(raw?.dataFolder && raw?.onboarded),
 		spendLimitUsd:
 			typeof raw?.spendLimitUsd === "number" && Number.isFinite(raw.spendLimitUsd) && raw.spendLimitUsd >= 0
 				? raw.spendLimitUsd

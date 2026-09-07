@@ -660,7 +660,9 @@ export class KaiakoSettingsModal extends Modal {
 			this.piVersion = detected.version;
 			if (!detected.found) throw new Error("Pi was installed, but the pi command is not available on PATH.");
 			await this.plugin.pi.linkHarness(this.plugin.config);
+			await this.plugin.saveConfig({ harnessLinked: true });
 			this.markHostRefresh();
+			this.plugin.notifyHarnessState(true, detected.version);
 			new Notice("Pi harness installed and linked.");
 		} catch (error) {
 			new Notice(`Could not link Pi harness: ${error instanceof Error ? error.message : "unknown error"}`);
@@ -678,8 +680,9 @@ export class KaiakoSettingsModal extends Modal {
 			await this.plugin.pi.unlinkAndDeleteHarness(this.plugin.config);
 			this.piFound = false;
 			this.piVersion = null;
-			await this.plugin.saveConfig({ autoStartPi: false, netSearch: false });
+			await this.plugin.saveConfig({ harnessLinked: false, autoStartPi: false, netSearch: false });
 			this.markHostRefresh();
+			this.plugin.notifyHarnessState(false, null);
 			new Notice("Pi harness unlinked and deleted.");
 		} catch (error) {
 			new Notice(`Could not delete Pi harness: ${error instanceof Error ? error.message : "unknown error"}`);

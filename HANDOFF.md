@@ -61,6 +61,7 @@ New work is always enqueued at the tail. The next job is always the head of **Re
 | 047 | 2026-09-06 | [Code and math horizontal scroll](handoffs/047-2026-09-06-code-math-horizontal-scroll.md) | Constrained code blocks and math blocks to sidebar horizontal viewport size; isolated horizontal scrolling to overflowing code/math blocks only. |
 | 048 | 2026-09-06 | [Steady and toned-down web search tooltip glow](handoffs/048-2026-09-06-steady-toned-down-websearch-tooltip-glow.md) | Removed pulsating animation from the web search status indicator dot in the CSS tooltip, toned down the dual-layer box shadow and halo gradient, and softened the yellow border. |
 | 049 | 2026-09-07 | [Harness offline overlay](handoffs/049-2026-09-07-harness-offline-overlay.md) | Added frosted gaussian blur overlay (0.56 blur & backdrop opacity) for unlinked/offline harness with unlinked chain symbol, centered two-line heading, and inverted-color Settings button with cubic-bezier(0.075, 0.82, 0.165, 1) easing and no upward translation. |
+| 050 | 2026-09-07 | [Fix offline overlay glitch and update heading text](handoffs/050-2026-09-07-fix-offline-overlay-glitch-and-update-text.md) | Eliminated offline overlay rendering glitch and multi-second delay via negative CLI lookup caching, synchronous configuration state, non-destructive overlay mounting, and removal of transparent initial animation; updated heading to "AI Agent is offline, active me!". |
 
 ## Ready (FIFO — next task is the first row)
 

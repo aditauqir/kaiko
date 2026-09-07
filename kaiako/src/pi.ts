@@ -18,19 +18,46 @@ export interface PiListeners {
 	onThinking?: (active: boolean) => void;
 }
 
-export async function detectPiHarness(): Promise<{ found: boolean; version: string | null }> {
-	try {
-		const { stdout } = await execCli("pi", ["--version"], { timeout: 4000 });
-		return { found: true, version: stdout.trim() || "installed" };
-	} catch {
-		return { found: false, version: null };
+let detectedPiCache: { found: boolean; version: string | null; checkedAt: number } | null = null;
+let detectingPiPromise: Promise<{ found: boolean; version: string | null }> | null = null;
+
+export function invalidatePiDetection(): void {
+	detectedPiCache = null;
+	detectingPiPromise = null;
+	forgetResolvedCli("pi");
+}
+
+export async function detectPiHarness(force = false): Promise<{ found: boolean; version: string | null }> {
+	const now = Date.now();
+	if (!force && detectedPiCache && now - detectedPiCache.checkedAt < 30000) {
+		return { found: detectedPiCache.found, version: detectedPiCache.version };
 	}
+	if (detectingPiPromise) return detectingPiPromise;
+
+	detectingPiPromise = (async () => {
+		try {
+			const { stdout } = await execCli("pi", ["--version"], { timeout: 4000 });
+			const res = { found: true, version: stdout.trim() || "installed" };
+			detectedPiCache = { ...res, checkedAt: Date.now() };
+			return res;
+		} catch {
+			const res = { found: false, version: null };
+			detectedPiCache = { ...res, checkedAt: Date.now() };
+			return res;
+		} finally {
+			detectingPiPromise = null;
+		}
+	})();
+
+	return detectingPiPromise;
 }
 
 export async function installPiHarness(): Promise<{ found: boolean; version: string | null }> {
+	invalidatePiDetection();
 	await execNpm(["install", "--global", "--ignore-scripts", PI_PACKAGE], { timeout: 120000 });
 	await rememberGlobalNpmBin("pi");
-	const detected = await detectPiHarness();
+	invalidatePiDetection();
+	const detected = await detectPiHarness(true);
 	if (!detected.found) {
 		throw new Error("Install Node.js, then retry. Pi was installed but the pi command is still not available.");
 	}
@@ -39,7 +66,7 @@ export async function installPiHarness(): Promise<{ found: boolean; version: str
 
 export async function uninstallPiHarness(): Promise<void> {
 	await execNpm(["uninstall", "--global", "--ignore-scripts", PI_PACKAGE], { timeout: 120000 });
-	forgetResolvedCli("pi");
+	invalidatePiDetection();
 }
 
 export function vaultBasePath(app: App): string | null {
@@ -76,6 +103,7 @@ export class PiHost {
 		if (!config.dataFolder) throw new Error("Choose a data folder first.");
 		if (this.pluginDir) await syncPiHarness(this.pluginDir, config.dataFolder);
 		await writeNetSearchConfig(config);
+		invalidatePiDetection();
 	}
 
 	async unlinkAndDeleteHarness(config: KaiakoConfig): Promise<void> {
@@ -84,6 +112,7 @@ export class PiHost {
 		if (config.dataFolder) {
 			await fs.promises.rm(path.join(config.dataFolder, "pi"), { recursive: true, force: true });
 		}
+		invalidatePiDetection();
 	}
 
 	async sync(app: App, config: KaiakoConfig): Promise<void> {

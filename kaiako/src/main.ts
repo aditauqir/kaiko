@@ -68,12 +68,25 @@ export default class KaiakoPlugin extends Plugin {
 			netSearch: false,
 			baseJump: "medium",
 			lockedIn: false,
+			harnessLinked: keepHarness ? previous.harnessLinked : false,
 			sessions: [],
 			currentSessionId: null,
 		});
 		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_KAIAKO)) {
 			const view = leaf.view;
-			if (view instanceof KaiakoView) view.reopenOnboarding();
+			if (view instanceof KaiakoView) {
+				view.setHarnessState(keepHarness ? previous.harnessLinked : false, null);
+				view.reopenOnboarding();
+			}
+		}
+	}
+
+	notifyHarnessState(linked: boolean, version: string | null): void {
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_KAIAKO)) {
+			const view = leaf.view;
+			if (view instanceof KaiakoView) {
+				view.setHarnessState(linked, version);
+			}
 		}
 	}
 
