@@ -6,6 +6,7 @@ export type ProviderId =
 	| "claude"
 	| "openai"
 	| "gemini"
+	| "qwen-cloud"
 	| "deepseek"
 	| "openrouter";
 
@@ -13,6 +14,7 @@ export const PROVIDER_ICON_FILES: Record<ProviderId, string> = {
 	claude: "claude.svg",
 	openai: "openai.svg",
 	gemini: "gemini.svg",
+	"qwen-cloud": "qwen-cloud.svg",
 	deepseek: "deepseek.svg",
 	openrouter: "openrouter.svg",
 };
@@ -28,20 +30,26 @@ export const PROVIDERS: ProviderDef[] = [
 	{
 		id: "claude",
 		label: "Claude",
-		model: "claude-sonnet-4-5",
+		model: "claude-sonnet-5",
 		hint: "Anthropic API key",
 	},
 	{
 		id: "openai",
 		label: "OpenAI",
-		model: "gpt-4.1",
+		model: "gpt-5.6",
 		hint: "OpenAI API key",
 	},
 	{
 		id: "gemini",
 		label: "Gemini",
-		model: "gemini-2.5-pro",
+		model: "gemini-3.8-flash",
 		hint: "Google AI Studio key",
+	},
+	{
+		id: "qwen-cloud",
+		label: "Qwen Cloud",
+		model: "qwen3.8-max",
+		hint: "Qwen Cloud API key",
 	},
 	{
 		id: "deepseek",
@@ -57,7 +65,7 @@ export const PROVIDERS: ProviderDef[] = [
 	},
 ];
 
-export const ONBOARDING_PROVIDER_IDS: ProviderId[] = ["claude", "openai", "gemini"];
+export const ONBOARDING_PROVIDER_IDS: ProviderId[] = ["openai", "claude", "qwen-cloud"];
 
 const iconDataUrlCache = new Map<string, string>();
 
@@ -114,6 +122,7 @@ export function onboardingProviders(): ProviderDef[] {
 export function providerMark(id: ProviderId): string {
 	if (id === "openai") return "O";
 	if (id === "claude") return "C";
+	if (id === "qwen-cloud") return "Q";
 	return id.slice(0, 1).toUpperCase();
 }
 
@@ -125,6 +134,7 @@ export function getProvider(id: ProviderId | null): ProviderDef | null {
 export function piProviderFlag(id: ProviderId): string {
 	if (id === "claude") return "anthropic";
 	if (id === "gemini") return "google";
+	if (id === "qwen-cloud") return "openai";
 	return id;
 }
 
@@ -132,6 +142,15 @@ export function envForApiKey(id: ProviderId, key: string): Record<string, string
 	if (id === "claude") return { ANTHROPIC_API_KEY: key };
 	if (id === "openai") return { OPENAI_API_KEY: key };
 	if (id === "gemini") return { GEMINI_API_KEY: key, GOOGLE_API_KEY: key };
+	if (id === "qwen-cloud") {
+		return {
+			OPENAI_API_KEY: key,
+			QWEN_CLOUD_API_KEY: key,
+			DASHSCOPE_API_KEY: key,
+			OPENAI_BASE_URL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+			OPENAI_MODEL: "qwen3.8-max",
+		};
+	}
 	if (id === "deepseek") return { DEEPSEEK_API_KEY: key };
 	return { OPENROUTER_API_KEY: key };
 }

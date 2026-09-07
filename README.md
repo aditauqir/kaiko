@@ -174,7 +174,7 @@ The settings modal provides a one-click **Export data** feature generating resea
 - **Obsidian**: Version 1.8.0 or higher.
 - **Node.js**: Version 18.0.0 or higher (for building from source or running the local Pi daemon).
 - **Pi Coding Agent**: Global npm package `@earendil-works/pi-coding-agent`.
-- **LLM API Key**: At least one key (Anthropic, OpenAI, Google Gemini, DeepSeek, or OpenRouter).
+- **LLM API Key**: At least one key (OpenAI, Anthropic, Google Gemini, Qwen Cloud, DeepSeek, or OpenRouter).
 
 ---
 
@@ -261,7 +261,7 @@ npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 
 1. Click the **graduation cap icon** in Obsidian's left ribbon to open the Kaiko sidebar.
 2. The **Onboarding Wizard** will walk you through:
-   - **AI Provider**: Choose Anthropic, OpenAI, Gemini, DeepSeek, or OpenRouter.
+   - **AI Provider**: Choose OpenAI, Claude, Qwen Cloud, Gemini, DeepSeek, or OpenRouter.
    - **API Key**: Enter your API key (validated with a live ping).
    - **Learner Profile**: Set your preferred name and background context.
    - **Data Directory**: Select where local agent skills and session metadata are stored.
@@ -299,10 +299,11 @@ Open Kaiko settings via the gear icon in the top header or through **Obsidian Se
 
 | Provider | Default Model | Environment Variable | Recommended Use |
 | :--- | :--- | :--- | :--- |
-| **Anthropic Claude** | `claude-sonnet-4-5` | `ANTHROPIC_API_KEY` | Deep pedagogical reasoning & tool use |
-| **OpenAI** | `gpt-4.1` | `OPENAI_API_KEY` | Structured output & rapid instruction |
-| **Google Gemini** | `gemini-2.5-pro` | `GEMINI_API_KEY` | Low-latency streaming & broad knowledge |
-| **DeepSeek** | `deepseek-v4-flash` | `DEEPSEEK_API_KEY` | Cost-effective technical tutoring |
+| **OpenAI** | `gpt-5.6` | `OPENAI_API_KEY` | Frontier reasoning, code intelligence & rapid instruction |
+| **Anthropic Claude** | `claude-sonnet-5` | `ANTHROPIC_API_KEY` | Deep pedagogical reasoning & tool use |
+| **Google Gemini** | `gemini-3.8-flash` | `GEMINI_API_KEY` | Low-latency streaming & broad multimodal knowledge |
+| **Qwen Cloud** | `qwen3.8-max` | `QWEN_CLOUD_API_KEY` | Multilingual & technical reasoning |
+| **DeepSeek** | `deepseek-v4-flash` | `DEEPSEEK_API_KEY` | Cost-effective technical tutoring & thinking mode |
 | **OpenRouter** | `openrouter/auto` | `OPENROUTER_API_KEY` | Flexible multi-model routing |
 
 ---
