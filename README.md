@@ -174,7 +174,7 @@ The settings modal provides a one-click **Export data** feature generating resea
 - **Obsidian**: Version 1.8.0 or higher.
 - **Node.js**: Version 18.0.0 or higher (for building from source or running the local Pi daemon).
 - **Pi Coding Agent**: Global npm package `@earendil-works/pi-coding-agent`.
-- **LLM API Key**: At least one key (Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, or DashScope).
+- **LLM API Key**: At least one key (Anthropic, OpenAI, Google Gemini, DeepSeek, or OpenRouter).
 
 ---
 
@@ -299,12 +299,11 @@ Open Kaiko settings via the gear icon in the top header or through **Obsidian Se
 
 | Provider | Default Model | Environment Variable | Recommended Use |
 | :--- | :--- | :--- | :--- |
-| **Anthropic Claude** | `claude-3-7-sonnet-latest` | `ANTHROPIC_API_KEY` | Deep pedagogical reasoning & tool use |
-| **OpenAI** | `gpt-4o` | `OPENAI_API_KEY` | Structured output & rapid instruction |
-| **Google Gemini** | `gemini-2.5-flash` | `GEMINI_API_KEY` | Low-latency streaming & broad knowledge |
-| **DeepSeek** | `deepseek-chat` | `DEEPSEEK_API_KEY` | Cost-effective technical tutoring |
-| **OpenRouter** | `anthropic/claude-3.5-sonnet` | `OPENROUTER_API_KEY` | Flexible multi-model routing |
-| **Qwen Cloud** | `qwen-plus` | `DASHSCOPE_API_KEY` | Multilingual & technical reasoning |
+| **Anthropic Claude** | `claude-sonnet-4-5` | `ANTHROPIC_API_KEY` | Deep pedagogical reasoning & tool use |
+| **OpenAI** | `gpt-4.1` | `OPENAI_API_KEY` | Structured output & rapid instruction |
+| **Google Gemini** | `gemini-2.5-pro` | `GEMINI_API_KEY` | Low-latency streaming & broad knowledge |
+| **DeepSeek** | `deepseek-v4-flash` | `DEEPSEEK_API_KEY` | Cost-effective technical tutoring |
+| **OpenRouter** | `openrouter/auto` | `OPENROUTER_API_KEY` | Flexible multi-model routing |
 
 ---
 

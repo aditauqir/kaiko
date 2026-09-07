@@ -50,15 +50,6 @@ function targetFor(provider: ProviderId, key: string): CheckTarget {
 			},
 		};
 	}
-	if (provider === "qwen-cloud") {
-		return {
-			url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models",
-			headers: {
-				authorization: `Bearer ${key}`,
-				accept: "application/json",
-			},
-		};
-	}
 	if (provider === "deepseek") {
 		return {
 			url: "https://api.deepseek.com/models",
